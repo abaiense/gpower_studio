@@ -1,0 +1,30 @@
+/* GPower Studio - Main Stylesheet */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background: #fff;
+}
+
+header {
+    background: #1a1a2e;
+    color: #fff;
+    padding: 1rem 2rem;
+}
+
+footer {
+    background: #1a1a2e;
+    color: #fff;
+    text-align: center;
+    padding: 1rem;
+    margin-top: auto;
+}
