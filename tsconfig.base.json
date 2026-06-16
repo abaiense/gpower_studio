@@ -20,13 +20,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "skipLibCheck": true,
-    "paths": {
-      "@gpower/shared": ["./packages/shared/src/index.ts"],
-      "@gpower/ui": ["./packages/ui/src/index.ts"],
-      "@gpower/db": ["./packages/db/src/index.ts"],
-      "@gpower/api": ["./packages/api/src"]
-    }
+    "skipLibCheck": true
   },
   "exclude": ["node_modules"]
 }

@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: gpower
-      POSTGRES_PASSWORD: gpower_dev
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gpower_dev}
       POSTGRES_DB: gpower_studio
     ports:
       - "5432:5432"
@@ -27,7 +27,7 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_dev_password}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s

@@ -1,3 +1,10 @@
+export enum Role {
+  OWNER = 'OWNER',
+  MANAGER = 'MANAGER',
+  ARTIST = 'ARTIST',
+  RECEPTIONIST = 'RECEPTIONIST',
+}
+
 export interface LoginDto {
   email: string;
   password: string;
@@ -21,7 +28,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   studioId: string;
-  role: string;
+  role: Role;
   iat?: number;
   exp?: number;
 }
