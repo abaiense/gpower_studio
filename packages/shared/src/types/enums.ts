@@ -44,3 +44,8 @@ export enum PaymentStatus {
   REFUNDED = 'REFUNDED',
   PARTIALLY_PAID = 'PARTIALLY_PAID',
 }
+
+export enum CommissionType {
+  PERCENTAGE = 'PERCENTAGE',
+  FIXED = 'FIXED',
+}
