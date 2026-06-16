@@ -29,6 +29,13 @@ function processQueue(error: unknown, token: string | null = null) {
     } else if (token && config.headers) {
       (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
       resolve(api(config));
+    } else if (!token) {
+      reject(new Error('No token available'));
+    } else {
+      // config.headers undefined — initialize it
+      config.headers = {};
+      (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+      resolve(api(config));
     }
   });
   failedQueue = [];
@@ -59,6 +66,7 @@ api.interceptors.response.use(
       }
 
       try {
+        // IMPORTANT: Must use axios (not api) here to bypass the 401 interceptor and prevent infinite loop
         const { data } = await axios.post(
           `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/auth/refresh`,
           { refreshToken },

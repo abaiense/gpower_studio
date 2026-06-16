@@ -22,14 +22,15 @@ interface AuthStore {
   setUser: (user: User | null) => void;
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
+export const useAuthStore = create<AuthStore>((set, get) => ({
   user: null,
   isLoading: false,
 
   setUser: (user) => set({ user }),
 
   login: async (credentials) => {
-    set({ isLoading: true });
+    if (get().isLoading) return; // prevent double-submit
+    set({ isLoading: true, user: null }); // clear previous user
     try {
       const { data } = await api.post<{
         accessToken: string;
@@ -57,7 +58,8 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   register: async (data) => {
-    set({ isLoading: true });
+    if (get().isLoading) return; // prevent double-submit
+    set({ isLoading: true, user: null }); // clear previous user
     try {
       const { data: response } = await api.post<{
         accessToken: string;

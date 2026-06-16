@@ -17,7 +17,7 @@ const TOTAL_STEPS = 3;
 
 // Fields to validate per step before advancing
 const STEP_FIELDS: Record<number, (keyof RegisterFormData)[]> = {
-  1: ['studioName', 'city', 'state'],
+  1: ['studioName'],
   2: ['plan'],
   3: ['firstName', 'lastName', 'email', 'password', 'confirmPassword'],
 };
@@ -94,7 +94,7 @@ export function RegisterForm() {
       </div>
 
       {serverError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           {serverError}
         </div>
       )}

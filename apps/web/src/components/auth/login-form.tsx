@@ -41,7 +41,7 @@ export function LoginForm() {
       </div>
 
       {serverError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+        <div role="alert" className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           {serverError}
         </div>
       )}
@@ -55,12 +55,13 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           placeholder="seu@email.com"
+          aria-describedby="email-error"
           {...register('email')}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-slate-50"
           disabled={isLoading}
         />
         {errors.email && (
-          <p className="text-red-600 text-xs mt-1">{errors.email.message}</p>
+          <p id="email-error" className="text-red-600 text-xs mt-1">{errors.email.message}</p>
         )}
       </div>
 
@@ -74,6 +75,7 @@ export function LoginForm() {
             type={showPassword ? 'text' : 'password'}
             autoComplete="current-password"
             placeholder="••••••••"
+            aria-describedby="password-error"
             {...register('password')}
             className="w-full px-3 py-2 pr-10 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-slate-50"
             disabled={isLoading}
@@ -81,6 +83,7 @@ export function LoginForm() {
           <button
             type="button"
             onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
             tabIndex={-1}
           >
@@ -88,7 +91,7 @@ export function LoginForm() {
           </button>
         </div>
         {errors.password && (
-          <p className="text-red-600 text-xs mt-1">{errors.password.message}</p>
+          <p id="password-error" className="text-red-600 text-xs mt-1">{errors.password.message}</p>
         )}
       </div>
 
