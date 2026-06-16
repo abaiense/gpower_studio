@@ -11,7 +11,8 @@ import { RegisterStudioDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CurrentUser, AuthenticatedUser } from './decorators/current-user.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
+import { JwtPayload } from '@gpower/shared';
 
 @Controller('auth')
 export class AuthController {
@@ -36,8 +37,12 @@ export class AuthController {
 
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async logout(@CurrentUser() user: AuthenticatedUser): Promise<void> {
-    await this.authService.logout(user.sub);
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { refreshToken?: string },
+  ): Promise<{ message: string }> {
+    await this.authService.logout(user.sub, body.refreshToken);
+    return { message: 'Logged out successfully' };
   }
 }

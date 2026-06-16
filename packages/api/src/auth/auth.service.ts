@@ -7,9 +7,14 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { User } from '@gpower/db';
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterStudioDto } from './dto/register.dto';
 import { JwtPayload, Role } from '@gpower/shared';
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
 
 export interface AuthTokens {
   accessToken: string;
@@ -33,26 +38,25 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterStudioDto): Promise<AuthTokens> {
-    const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
-    });
-
-    if (existing) {
-      throw new ConflictException('Email already in use');
-    }
-
     const slug = this.generateSlug(dto.studioName);
-
-    const existingStudio = await this.prisma.studio.findUnique({
-      where: { slug },
-    });
-    if (existingStudio) {
-      throw new ConflictException('Studio slug already taken');
-    }
-
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // TOCTOU fix: uniqueness checks inside the transaction
+      const existing = await tx.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (existing) {
+        throw new ConflictException('Email already in use');
+      }
+
+      const existingStudio = await tx.studio.findUnique({
+        where: { slug },
+      });
+      if (existingStudio) {
+        throw new ConflictException('Studio slug already taken');
+      }
+
       const studio = await tx.studio.create({
         data: {
           name: dto.studioName,
@@ -105,12 +109,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
+    const tokenHash = hashToken(token);
     const storedToken = await this.prisma.refreshToken.findUnique({
-      where: { token },
+      where: { token: tokenHash },
       include: { user: true },
     });
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+    if (!storedToken || storedToken.expiresAt <= new Date()) {
       throw new UnauthorizedException('Refresh token not found or expired');
     }
 
@@ -118,8 +123,17 @@ export class AuthService {
     return { accessToken };
   }
 
-  async logout(userId: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+  async logout(userId: string, refreshToken?: string): Promise<void> {
+    if (refreshToken) {
+      // Invalidate only this specific session
+      const tokenHash = hashToken(refreshToken);
+      await this.prisma.refreshToken.deleteMany({
+        where: { userId, token: tokenHash },
+      });
+    } else {
+      // No specific token provided: invalidate all sessions
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    }
   }
 
   private async generateTokensForUser(user: User): Promise<AuthTokens> {
@@ -136,9 +150,15 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    // Clean up expired tokens before creating a new one (Fix 4)
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId: user.id, expiresAt: { lte: new Date() } },
+    });
+
+    // Store hashed token (Fix 1)
     await this.prisma.refreshToken.create({
       data: {
-        token: refreshToken,
+        token: hashToken(refreshToken),
         userId: user.id,
         expiresAt,
       },

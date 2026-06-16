@@ -20,7 +20,10 @@ export class TenantMiddleware implements NestMiddleware {
     if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
-        const secret = this.configService.get<string>('JWT_SECRET') ?? '';
+        const secret = this.configService.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error('JWT_SECRET environment variable is not set');
+        }
         const payload = this.jwtService.verify<JwtPayload>(token, { secret });
         req.studioId = payload.studioId;
       } catch {

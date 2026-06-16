@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@gpower/db';
@@ -28,7 +29,7 @@ export class RolesGuard implements CanActivate {
     const user = request.user;
 
     if (!user) {
-      throw new ForbiddenException('Access denied');
+      throw new UnauthorizedException('Authentication required');
     }
 
     const hasRole = requiredRoles.some((role) => role === (user.role as Role));
