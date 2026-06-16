@@ -15,7 +15,11 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
     "build": "tsc"
+  },
+  "prisma": {
+    "seed": "ts-node --project tsconfig.seed.json prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.16.0"
@@ -23,6 +27,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "prisma": "^5.16.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5.5.0"
   }
 }

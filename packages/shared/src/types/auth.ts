@@ -1,9 +1,4 @@
-export enum Role {
-  OWNER = 'OWNER',
-  MANAGER = 'MANAGER',
-  ARTIST = 'ARTIST',
-  RECEPTIONIST = 'RECEPTIONIST',
-}
+import { Role } from './enums';
 
 export interface LoginDto {
   email: string;

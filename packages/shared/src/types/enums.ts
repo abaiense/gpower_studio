@@ -1,0 +1,46 @@
+export enum Role {
+  OWNER = 'OWNER',
+  MANAGER = 'MANAGER',
+  ARTIST = 'ARTIST',
+  RECEPTIONIST = 'RECEPTIONIST',
+}
+
+export enum AppointmentStatus {
+  PENDING = 'PENDING',
+  DEPOSIT_PAID = 'DEPOSIT_PAID',
+  CONFIRMED = 'CONFIRMED',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  NO_SHOW = 'NO_SHOW',
+}
+
+export enum ProjectStatus {
+  ACTIVE = 'ACTIVE',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  ON_HOLD = 'ON_HOLD',
+}
+
+export enum ServiceCategory {
+  TATTOO = 'TATTOO',
+  PIERCING = 'PIERCING',
+  CONSULTATION = 'CONSULTATION',
+  TOUCH_UP = 'TOUCH_UP',
+  REMOVAL = 'REMOVAL',
+}
+
+export enum PaymentMethod {
+  CASH = 'CASH',
+  PIX = 'PIX',
+  CREDIT_CARD = 'CREDIT_CARD',
+  DEBIT_CARD = 'DEBIT_CARD',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+}
+
+export enum PaymentStatus {
+  PENDING = 'PENDING',
+  PAID = 'PAID',
+  REFUNDED = 'REFUNDED',
+  PARTIALLY_PAID = 'PARTIALLY_PAID',
+}
