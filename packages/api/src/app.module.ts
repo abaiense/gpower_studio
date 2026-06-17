@@ -6,6 +6,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { StudiosModule } from './studios/studios.module';
 import { ArtistsModule } from './artists/artists.module';
+import { ClientsModule } from './clients/clients.module';
+import { ServicesModule } from './services/services.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 
 @Module({
@@ -17,6 +20,9 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
     UsersModule,
     StudiosModule,
     ArtistsModule,
+    ClientsModule,
+    ServicesModule,
+    AppointmentsModule,
   ],
   controllers: [],
   providers: [],
