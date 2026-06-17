@@ -78,6 +78,10 @@ export class ProjectsService {
 
   async linkAppointment(id: string, appointmentId: string, studioId: string) {
     await this.findOne(id, studioId);
+    const appt = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, studioId },
+    });
+    if (!appt) throw new NotFoundException(`Appointment ${appointmentId} not found`);
     return this.prisma.appointment.update({
       where: { id: appointmentId },
       data: { projectId: id },

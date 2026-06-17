@@ -22,7 +22,7 @@ const createPrismaMock = () => ({
     findFirst: jest.fn(),
     update: jest.fn(),
   },
-  appointment: { update: jest.fn() },
+  appointment: { update: jest.fn(), findFirst: jest.fn() },
 });
 
 describe('ProjectsService', () => {
@@ -113,12 +113,19 @@ describe('ProjectsService', () => {
   describe('linkAppointment', () => {
     it('links appointment to project', async () => {
       prisma.project.findFirst.mockResolvedValue(mockProject);
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'appt-1', studioId: 'studio-1' });
       prisma.appointment.update.mockResolvedValue({ id: 'appt-1', projectId: 'proj-1' });
       await service.linkAppointment('proj-1', 'appt-1', 'studio-1');
       expect(prisma.appointment.update).toHaveBeenCalledWith({
         where: { id: 'appt-1' },
         data: { projectId: 'proj-1' },
       });
+    });
+
+    it('throws NotFoundException when appointment not in same studio', async () => {
+      prisma.project.findFirst.mockResolvedValue(mockProject);
+      prisma.appointment.findFirst.mockResolvedValue(null);
+      await expect(service.linkAppointment('proj-1', 'other-studio-appt', 'studio-1')).rejects.toThrow(NotFoundException);
     });
   });
 });
