@@ -27,7 +27,7 @@ export function LoginForm() {
     setServerError(null);
     try {
       await login(data);
-      router.push('/agenda');
+      router.push('/dashboard');
     } catch {
       setServerError('Email ou senha inválidos. Tente novamente.');
     }

@@ -49,7 +49,7 @@ export function RegisterForm() {
     setServerError(null);
     try {
       await storeRegister(data);
-      router.push('/agenda');
+      router.push('/dashboard');
     } catch {
       setServerError('Não foi possível criar a conta. Tente novamente.');
     }

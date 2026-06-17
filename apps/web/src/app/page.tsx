@@ -6,7 +6,7 @@ export default async function RootPage() {
   const token = cookieStore.get('gpower_access_token');
 
   if (token?.value) {
-    redirect('/agenda');
+    redirect('/dashboard');
   } else {
     redirect('/login');
   }
