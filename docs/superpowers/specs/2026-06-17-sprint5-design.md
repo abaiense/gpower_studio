@@ -235,6 +235,29 @@ estúdio recebe notificação do claim
 
 ---
 
+## Setup da Conta MercadoPago
+
+### Cadastro e Plano
+
+1. Acesse [mercadopago.com.br/developers/panel](https://www.mercadopago.com.br/developers/panel)
+2. Crie uma conta ou faça login
+3. Durante o cadastro, selecione o plano **Starter** (gratuito) — suficiente para testar:
+   - Geração de link de checkout (preferences)
+   - Webhook de confirmação de pagamento
+   - Parcelamento (até 12x)
+4. Após criar a conta, vá em "Suas integrações" → "Credenciais"
+5. Copie o **Access Token** e a **Public Key**
+6. No GPower Studio, acesse **Configurações > Pagamentos** e cole os tokens
+
+> **Importante:** Para testes em ambiente de desenvolvimento, use as credenciais de teste (TEST-xxxx). O MercadoPago fornece cartões de teste para simular pagamentos sem movimentar dinheiro real.
+
+### Webhook (produção)
+
+- URL: `https://seudominio.com/api/payments/mp-webhook?studio_id=xxxx`
+- Configure no painel MP em: **Webhooks & Notificações**
+
+---
+
 ## Fora de escopo (sprint 6+)
 
 - Conciliação automática InfinitePay (API InfinitePay)
