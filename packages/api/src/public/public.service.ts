@@ -65,10 +65,10 @@ export class PublicService {
     });
     if (!file) throw new NotFoundException('Art file not found');
     if (file.status === ArtFileStatus.APPROVED) {
-      return { message: 'Already approved' };
+      return { message: 'Arte já aprovada' };
     }
     await this.prisma.artFile.update({
-      where: { id: payload.artFileId },
+      where: { id: file.id },
       data: { status: ArtFileStatus.APPROVED, approvedAt: new Date(), approvedIp: ip },
     });
     return { message: 'Arte aprovada com sucesso!' };
@@ -104,7 +104,7 @@ export class PublicService {
     });
     if (!form) throw new NotFoundException('Consent form not found');
     if (form.signedAt) {
-      return { message: 'Already signed' };
+      return { message: 'Consentimento já assinado' };
     }
     const hash = crypto
       .createHash('sha256')
