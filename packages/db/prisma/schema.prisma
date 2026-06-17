@@ -360,8 +360,8 @@ model ArtFile {
   id                     String        @id @default(cuid())
   version                Int
   filename               String
-  s3Key                  String
-  mimeType               String        @default("image/jpeg")
+  s3Key                  String        @unique
+  mimeType               String
   sizeBytes              Int           @default(0)
   status                 ArtFileStatus @default(DRAFT)
   notes                  String?
@@ -381,7 +381,9 @@ model ArtFile {
   studio   Studio  @relation(fields: [studioId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploadedBy], references: [id])
 
+  @@unique([projectId, version])
   @@index([projectId])
+  @@index([studioId])
   @@index([approvalToken])
   @@map("art_files")
 }
