@@ -16,6 +16,8 @@ bower_components/
 # Build
 dist/
 build/
+.next/
+.turbo/
 
 # Environment
 .env
