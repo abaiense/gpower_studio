@@ -61,6 +61,10 @@ const mockConsentForm = {
 const createPrismaMock = () => ({
   artFile: { findFirst: jest.fn(), update: jest.fn() },
   consentForm: { findFirst: jest.fn(), update: jest.fn() },
+  flashSlot: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
+  client: { findFirst: jest.fn() },
+  appointment: { create: jest.fn() },
+  $transaction: jest.fn(),
 });
 
 describe('PublicService', () => {
@@ -198,6 +202,138 @@ describe('PublicService', () => {
     it('throws NotFoundException when form not found', async () => {
       prisma.consentForm.findFirst.mockResolvedValue(null);
       await expect(service.signConsent('mock-token', '1.2.3.4', 'ua')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getFlashSlot', () => {
+    it('returns OPEN slot with artist and service info', async () => {
+      const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      prisma.flashSlot.findFirst.mockResolvedValue({
+        id: 'flash-1',
+        claimToken: 'abc',
+        status: 'OPEN',
+        title: 'Slot relâmpago',
+        claimDeadline: futureDate,
+        artist: { firstName: 'João', lastName: 'Silva' },
+        service: { name: 'Tatuagem' },
+      });
+      const result = await service.getFlashSlot('abc');
+      expect(result.id).toBe('flash-1');
+      expect(result.status).toBe('OPEN');
+    });
+
+    it('lazily expires slot past deadline', async () => {
+      const pastDate = new Date(Date.now() - 1000);
+      prisma.flashSlot.findFirst.mockResolvedValue({
+        id: 'flash-1',
+        claimToken: 'abc',
+        status: 'OPEN',
+        claimDeadline: pastDate,
+      });
+      prisma.flashSlot.update.mockResolvedValue({
+        id: 'flash-1',
+        status: 'EXPIRED',
+      });
+      const result = await service.getFlashSlot('abc');
+      expect(result.status).toBe('EXPIRED');
+      expect(prisma.flashSlot.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { status: 'EXPIRED' } }),
+      );
+    });
+
+    it('throws NotFoundException for unknown token', async () => {
+      prisma.flashSlot.findFirst.mockResolvedValue(null);
+      await expect(service.getFlashSlot('bad')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('claimFlashSlot', () => {
+    const futureDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const mockOpenSlot = {
+      id: 'flash-1',
+      status: 'OPEN',
+      claimDeadline: futureDate,
+      sessionAt: new Date('2026-07-01T10:00:00Z'),
+      discountPrice: 500,
+      artistId: 'artist-1',
+      serviceId: 'service-1',
+      studioId: 'studio-1',
+    };
+
+    it('creates appointment and claims slot atomically', async () => {
+      prisma.flashSlot.findFirst.mockResolvedValue(mockOpenSlot);
+      prisma.client.findFirst.mockResolvedValue({
+        id: 'client-1',
+        firstName: 'Ana',
+        phone: '+5511',
+      });
+      // Mock $transaction to execute the callback with a tx object
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: any) => Promise<any>) => {
+          const tx = {
+            flashSlot: {
+              updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+              update: jest.fn().mockResolvedValue({}),
+            },
+            appointment: {
+              create: jest.fn().mockResolvedValue({ id: 'apt-1' }),
+            },
+          };
+          return fn(tx);
+        },
+      );
+      const result = await service.claimFlashSlot('abc', '+5511');
+      expect(result.appointmentId).toBe('apt-1');
+    });
+
+    it('throws BadRequestException when slot already CLAIMED', async () => {
+      prisma.flashSlot.findFirst.mockResolvedValue({
+        ...mockOpenSlot,
+        status: 'CLAIMED',
+      });
+      await expect(service.claimFlashSlot('abc', '+5511')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws NotFoundException when phone not in studio', async () => {
+      prisma.flashSlot.findFirst.mockResolvedValue(mockOpenSlot);
+      prisma.client.findFirst.mockResolvedValue(null);
+      await expect(
+        service.claimFlashSlot('abc', '+5500000'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when deadline expired', async () => {
+      const pastDate = new Date(Date.now() - 1000);
+      prisma.flashSlot.findFirst.mockResolvedValue({
+        ...mockOpenSlot,
+        claimDeadline: pastDate,
+      });
+      prisma.flashSlot.update.mockResolvedValue({ id: 'flash-1', status: 'EXPIRED' });
+      await expect(service.claimFlashSlot('abc', '+5511')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws BadRequestException (409) when race condition detected', async () => {
+      prisma.flashSlot.findFirst.mockResolvedValue(mockOpenSlot);
+      prisma.client.findFirst.mockResolvedValue({ id: 'c1', firstName: 'Ana', phone: '+5511' });
+      prisma.$transaction.mockImplementation(
+        async (fn: (tx: any) => Promise<any>) => {
+          const tx = {
+            flashSlot: {
+              updateMany: jest.fn().mockResolvedValue({ count: 0 }), // race: count=0
+              update: jest.fn(),
+            },
+            appointment: { create: jest.fn() },
+          };
+          return fn(tx);
+        },
+      );
+      await expect(service.claimFlashSlot('abc', '+5511')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

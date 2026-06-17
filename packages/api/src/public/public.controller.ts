@@ -49,4 +49,18 @@ export class PublicController {
     const ua = req.headers['user-agent'] ?? '';
     return this.service.signConsent(token, ip, ua);
   }
+
+  @Get('flash/:token')
+  getFlashSlot(@Param('token') token: string) {
+    return this.service.getFlashSlot(token);
+  }
+
+  @Post('flash/:token/claim')
+  @HttpCode(HttpStatus.OK)
+  claimFlashSlot(
+    @Param('token') token: string,
+    @Body() body: { phone: string },
+  ) {
+    return this.service.claimFlashSlot(token, body.phone);
+  }
 }

@@ -116,4 +116,98 @@ export class PublicService {
     });
     return { message: 'Consentimento registrado com sucesso!', hash };
   }
+
+  async getFlashSlot(token: string) {
+    const slot = await this.prisma.flashSlot.findFirst({
+      where: { claimToken: token },
+      include: {
+        artist: { select: { firstName: true, lastName: true } },
+        service: { select: { name: true } },
+      },
+    });
+    if (!slot) throw new NotFoundException('Flash slot not found');
+
+    if (slot.status === 'OPEN' && new Date() > new Date(slot.claimDeadline)) {
+      const updated = await this.prisma.flashSlot.update({
+        where: { id: slot.id },
+        data: { status: 'EXPIRED' },
+      });
+      return { ...slot, status: updated.status };
+    }
+
+    return slot;
+  }
+
+  async claimFlashSlot(token: string, phone: string) {
+    const slot = await this.prisma.flashSlot.findFirst({
+      where: { claimToken: token },
+    });
+    if (!slot) throw new NotFoundException('Flash slot not found');
+    if (slot.status !== 'OPEN') {
+      throw new BadRequestException(
+        slot.status === 'CLAIMED'
+          ? 'Este slot já foi reservado.'
+          : 'Este slot não está mais disponível.',
+      );
+    }
+    if (new Date() > new Date(slot.claimDeadline)) {
+      await this.prisma.flashSlot.update({
+        where: { id: slot.id },
+        data: { status: 'EXPIRED' },
+      });
+      throw new BadRequestException('O prazo para reservar este slot expirou.');
+    }
+
+    const client = await this.prisma.client.findFirst({
+      where: { phone, studioId: slot.studioId },
+    });
+    if (!client) {
+      throw new NotFoundException(
+        'Telefone não encontrado. Verifique o número ou entre em contato com o estúdio.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.flashSlot.updateMany({
+        where: { id: slot.id, status: 'OPEN' },
+        data: {
+          status: 'CLAIMED',
+          claimedByClientId: client.id,
+          claimedAt: new Date(),
+        },
+      });
+      if (updated.count === 0) {
+        throw new BadRequestException(
+          'Este slot acabou de ser reservado por outro cliente.',
+        );
+      }
+
+      const sessionAt = new Date(slot.sessionAt);
+      const endAt = new Date(sessionAt.getTime() + 2 * 60 * 60 * 1000);
+
+      const appointment = await tx.appointment.create({
+        data: {
+          startAt: sessionAt,
+          endAt,
+          status: 'PENDING',
+          totalPrice: slot.discountPrice,
+          clientId: client.id,
+          artistId: slot.artistId,
+          serviceId: slot.serviceId,
+          studioId: slot.studioId,
+        },
+      });
+
+      await tx.flashSlot.update({
+        where: { id: slot.id },
+        data: { appointmentId: appointment.id },
+      });
+
+      return {
+        message:
+          'Slot reservado com sucesso! O estúdio entrará em contato para confirmar.',
+        appointmentId: appointment.id,
+      };
+    });
+  }
 }
