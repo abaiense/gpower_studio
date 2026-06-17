@@ -4,7 +4,9 @@ export type NotificationTemplate =
   | 'APPOINTMENT_CONFIRMATION'
   | 'APPOINTMENT_REMINDER'
   | 'DEPOSIT_REQUEST'
-  | 'AFTERCARE_DAY1';
+  | 'AFTERCARE_DAY1'
+  | 'ART_APPROVAL_REQUEST'
+  | 'CONSENT_REQUEST';
 
 export interface AppointmentData {
   appointmentId: string;
