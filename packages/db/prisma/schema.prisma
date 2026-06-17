@@ -65,6 +65,13 @@ enum CommissionType {
   FIXED
 }
 
+enum ArtFileStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REVISION_REQUESTED
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model Studio {
@@ -107,6 +114,7 @@ model Studio {
   appointments Appointment[]
   projects     Project[]
   consentForms ConsentForm[]
+  artFiles     ArtFile[]
 
   @@map("studios")
 }
@@ -128,6 +136,7 @@ model User {
   studio        Studio         @relation(fields: [studioId], references: [id], onDelete: Cascade)
   artist        Artist?        @relation(fields: [artistId], references: [id])
   refreshTokens RefreshToken[]
+  artFiles      ArtFile[]
 
   @@index([studioId])
   @@map("users")
@@ -255,6 +264,8 @@ model Project {
   artist       Artist        @relation(fields: [artistId], references: [id], onDelete: Restrict)
   studio       Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
   appointments Appointment[]
+  artFiles     ArtFile[]
+  consentForms ConsentForm[]
 
   @@index([clientId])
   @@index([artistId])
@@ -328,15 +339,49 @@ model ConsentForm {
   clientId      String
   appointmentId String?
   studioId      String
+  consentToken          String?   @unique
+  consentTokenExpiresAt DateTime?
+  projectId             String?
 
   createdAt DateTime @default(now())
 
   client      Client       @relation(fields: [clientId], references: [id])
   appointment Appointment? @relation(fields: [appointmentId], references: [id])
   studio      Studio       @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  project     Project?     @relation(fields: [projectId], references: [id])
 
   @@index([clientId])
   @@index([appointmentId])
   @@index([studioId])
   @@map("consent_forms")
+}
+
+model ArtFile {
+  id                     String        @id @default(cuid())
+  version                Int
+  filename               String
+  s3Key                  String
+  mimeType               String        @default("image/jpeg")
+  sizeBytes              Int           @default(0)
+  status                 ArtFileStatus @default(DRAFT)
+  notes                  String?
+  clientNotes            String?
+  approvalToken          String?       @unique
+  approvalTokenExpiresAt DateTime?
+  approvedAt             DateTime?
+  approvedIp             String?
+  projectId              String
+  studioId               String
+  uploadedBy             String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  studio   Studio  @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([projectId])
+  @@index([approvalToken])
+  @@map("art_files")
 }
