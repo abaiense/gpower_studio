@@ -6,7 +6,9 @@ export type NotificationTemplate =
   | 'DEPOSIT_REQUEST'
   | 'AFTERCARE_DAY1'
   | 'ART_APPROVAL_REQUEST'
-  | 'CONSENT_REQUEST';
+  | 'CONSENT_REQUEST'
+  | 'FLASH_SALE_BROADCAST'
+  | 'FLASH_SALE_CLAIMED';
 
 export interface AppointmentData {
   appointmentId: string;

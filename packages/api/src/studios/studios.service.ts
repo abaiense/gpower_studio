@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Studio } from '@gpower/db';
 import { PrismaService } from '../prisma/prisma.service';
-import { StudioSettingsDto } from './dto/studio-settings.dto';
+import { StudioSettingsDto, UpdatePaymentConfigDto } from './dto/studio-settings.dto';
 
 @Injectable()
 export class StudiosService {
@@ -47,6 +47,40 @@ export class StudiosService {
     return this.prisma.studio.update({
       where: { id: studioId },
       data: dto,
+    });
+  }
+
+  async getPaymentConfig(studioId: string) {
+    const studio = await this.prisma.studio.findUnique({
+      where: { id: studioId },
+    });
+    if (!studio) throw new NotFoundException('Studio not found');
+    return {
+      mpConfigured: !!studio.mpAccessToken,
+      mpPublicKey: studio.mpPublicKey ?? null,
+      // mpAccessToken is intentionally omitted
+    };
+  }
+
+  async updatePaymentConfig(
+    studioId: string,
+    dto: UpdatePaymentConfigDto,
+  ) {
+    const studio = await this.prisma.studio.findUnique({
+      where: { id: studioId },
+    });
+    if (!studio) throw new NotFoundException('Studio not found');
+    return this.prisma.studio.update({
+      where: { id: studioId },
+      data: {
+        ...(dto.mpAccessToken !== undefined
+          ? { mpAccessToken: dto.mpAccessToken }
+          : {}),
+        ...(dto.mpPublicKey !== undefined
+          ? { mpPublicKey: dto.mpPublicKey }
+          : {}),
+      },
+      select: { id: true, mpPublicKey: true },
     });
   }
 }

@@ -1,7 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
+import axios from 'axios';
+
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +51,9 @@ const createPrismaMock = () => ({
     findFirst: jest.fn(),
     update: jest.fn(),
   },
+  studio: {
+    findUnique: jest.fn(),
+  },
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -57,6 +64,7 @@ describe('PaymentsService', () => {
 
   beforeEach(async () => {
     prisma = createPrismaMock();
+    jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -220,6 +228,240 @@ describe('PaymentsService', () => {
       await expect(service.refund('nonexistent', 'studio-1')).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  // ── createManual ──────────────────────────────────────────────────────────
+
+  describe('createManual', () => {
+    it('creates PAID payment with source infinitepay', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'apt-1', studioId: 'studio-1' });
+      prisma.payment.create.mockResolvedValue({
+        id: 'pay-1',
+        amount: 500,
+        method: 'CREDIT_CARD',
+        status: 'PAID',
+        source: 'infinitepay',
+        installments: 3,
+        installmentValue: 166.67,
+        checkoutUrl: null,
+        externalId: null,
+        gateway: null,
+        paidAt: new Date(),
+        appointmentId: 'apt-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.createManual(
+        { appointmentId: 'apt-1', amount: 500, method: 'CREDIT_CARD' as any, installments: 3 },
+        'studio-1',
+      );
+
+      expect(result.status).toBe('PAID');
+      expect(result.source).toBe('infinitepay');
+      expect(prisma.payment.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'PAID',
+            source: 'infinitepay',
+            installments: 3,
+            paidAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('throws NotFoundException if appointment not in studio', async () => {
+      prisma.appointment.findFirst.mockResolvedValue(null);
+      await expect(
+        service.createManual(
+          { appointmentId: 'bad', amount: 100, method: 'PIX' as any },
+          'studio-1',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ── createCheckout ────────────────────────────────────────────────────────
+
+  describe('createCheckout', () => {
+    it('calls MP API and returns checkoutUrl', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'apt-1', studioId: 'studio-1' });
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+        mpPublicKey: 'pk',
+      });
+      mockedAxios.post.mockResolvedValue({
+        data: { id: 'pref-123', init_point: 'https://mp.com/checkout/pref-123' },
+      });
+      prisma.payment.create.mockResolvedValue({
+        id: 'pay-1',
+        amount: 500,
+        method: 'CREDIT_CARD',
+        status: 'PENDING',
+        checkoutUrl: 'https://mp.com/checkout/pref-123',
+        source: 'mercadopago',
+        externalId: 'pref-123',
+        gateway: 'mercadopago',
+        installments: null,
+        installmentValue: null,
+        paidAt: null,
+        appointmentId: 'apt-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await service.createCheckout(
+        { appointmentId: 'apt-1', amount: 500, description: 'Tatuagem sessão 1' },
+        'studio-1',
+      );
+
+      expect(result.checkoutUrl).toBe('https://mp.com/checkout/pref-123');
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        'https://api.mercadopago.com/checkout/preferences',
+        expect.objectContaining({
+          items: expect.arrayContaining([
+            expect.objectContaining({ unit_price: 500 }),
+          ]),
+        }),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer TEST_TOKEN' }),
+        }),
+      );
+    });
+
+    it('throws BadRequestException if studio has no MP access token', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'apt-1', studioId: 'studio-1' });
+      prisma.studio.findUnique.mockResolvedValue({ id: 'studio-1', mpAccessToken: null });
+      await expect(
+        service.createCheckout({ appointmentId: 'apt-1', amount: 500 }, 'studio-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException if appointment not in studio', async () => {
+      prisma.appointment.findFirst.mockResolvedValue(null);
+      await expect(
+        service.createCheckout({ appointmentId: 'bad', amount: 500 }, 'studio-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws InternalServerErrorException if MP API call fails', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'apt-1', studioId: 'studio-1' });
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.post.mockRejectedValue({ response: { status: 500 } });
+      await expect(
+        service.createCheckout({ appointmentId: 'apt-1', amount: 500 }, 'studio-1'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  // ── handleMpWebhook ───────────────────────────────────────────────────────
+
+  describe('handleMpWebhook', () => {
+    it('marks payment as PAID when MP status is approved', async () => {
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          status: 'approved',
+          metadata: { payment_id: 'pay-1' },
+          installments: 3,
+        },
+      });
+      prisma.payment.findFirst.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PENDING',
+      });
+      prisma.payment.update.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PAID',
+      });
+
+      await service.handleMpWebhook('studio-1', 'mp-payment-123');
+
+      expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'pay-1',
+            appointment: { studioId: 'studio-1' },
+          }),
+        }),
+      );
+      expect(prisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'PAID',
+            paidAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+
+    it('is idempotent — skips update if already PAID', async () => {
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.get.mockResolvedValue({
+        data: { status: 'approved', metadata: { payment_id: 'pay-1' }, installments: 1 },
+      });
+      prisma.payment.findFirst.mockResolvedValue({
+        id: 'pay-1',
+        status: 'PAID',
+      });
+
+      await service.handleMpWebhook('studio-1', 'mp-payment-123');
+
+      expect(prisma.payment.update).not.toHaveBeenCalled();
+    });
+
+    it('returns silently if studio has no mpAccessToken', async () => {
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: null,
+      });
+
+      await expect(service.handleMpWebhook('studio-1', 'mp-pay-1')).resolves.toBeUndefined();
+      expect(mockedAxios.get).not.toHaveBeenCalled();
+    });
+
+    it('returns silently if MP payment has no metadata.payment_id', async () => {
+      prisma.studio.findUnique.mockResolvedValue({ id: 'studio-1', mpAccessToken: 'tok' });
+      mockedAxios.get.mockResolvedValue({ data: { status: 'approved', metadata: {} } });
+
+      await expect(service.handleMpWebhook('studio-1', 'mp-pay-1')).resolves.toBeUndefined();
+      expect(prisma.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('returns silently if MP API GET call fails', async () => {
+      prisma.studio.findUnique.mockResolvedValue({ id: 'studio-1', mpAccessToken: 'tok' });
+      mockedAxios.get.mockRejectedValue(new Error('network error'));
+
+      await expect(service.handleMpWebhook('studio-1', 'mp-pay-1')).resolves.toBeUndefined();
+      expect(prisma.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('does not update payment belonging to a different studio', async () => {
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.get.mockResolvedValue({
+        data: { status: 'approved', metadata: { payment_id: 'pay-other-studio' }, installments: 1 },
+      });
+      // Simulate payment not found for this studio (it belongs to another studio)
+      prisma.payment.findFirst.mockResolvedValue(null);
+
+      await service.handleMpWebhook('studio-1', 'mp-payment-123');
+
+      expect(prisma.payment.update).not.toHaveBeenCalled();
     });
   });
 });
