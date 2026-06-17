@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { FlashSlotStatus } from '@gpower/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateFlashSlotDto, QueryFlashSlotDto } from './dto/flash-sale.dto';
@@ -47,26 +48,28 @@ export class FlashSalesService {
       select: { id: true, firstName: true, phone: true },
     });
 
-    for (const client of clients) {
-      if (!client.phone) continue;
-      await this.notifications.send({
-        channel: 'whatsapp',
-        template: 'FLASH_SALE_BROADCAST',
-        recipient: { phone: client.phone, name: client.firstName },
-        data: {
-          clientName: client.firstName,
-          title: dto.title,
-          discountPrice: String(dto.discountPrice),
-          originalPrice: String(dto.originalPrice),
-          discount: String(discount),
-          claimUrl,
-          deadline: new Date(dto.claimDeadline).toLocaleString('pt-BR', {
-            timeZone: 'America/Sao_Paulo',
-          }),
-        },
-        studioId,
-      });
-    }
+    const notificationJobs = clients
+      .filter((c) => !!c.phone)
+      .map((client) =>
+        this.notifications.send({
+          channel: 'whatsapp',
+          template: 'FLASH_SALE_BROADCAST',
+          recipient: { phone: client.phone!, name: client.firstName },
+          data: {
+            clientName: client.firstName,
+            title: dto.title,
+            discountPrice: String(dto.discountPrice),
+            originalPrice: String(dto.originalPrice),
+            discount: String(discount),
+            claimUrl,
+            deadline: new Date(dto.claimDeadline).toLocaleString('pt-BR', {
+              timeZone: 'America/Sao_Paulo',
+            }),
+          },
+          studioId,
+        }),
+      );
+    await Promise.allSettled(notificationJobs);
 
     return slot;
   }
@@ -75,7 +78,7 @@ export class FlashSalesService {
     return this.prisma.flashSlot.findMany({
       where: {
         studioId,
-        ...(query.status ? { status: query.status as never } : {}),
+        ...(query.status ? { status: query.status as FlashSlotStatus } : {}),
       },
       include: {
         artist: { select: { firstName: true, lastName: true } },

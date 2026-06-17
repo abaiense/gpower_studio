@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { FlashSlotStatus } from '@gpower/db';
 import { FlashSalesService } from './flash-sales.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -146,7 +147,7 @@ describe('FlashSalesService', () => {
 
     it('filters by status when provided', async () => {
       mockPrisma.flashSlot.findMany.mockResolvedValue([mockSlot]);
-      await service.findAll('studio-1', { status: 'OPEN' });
+      await service.findAll('studio-1', { status: 'OPEN' as FlashSlotStatus });
       expect(mockPrisma.flashSlot.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ status: 'OPEN' }),

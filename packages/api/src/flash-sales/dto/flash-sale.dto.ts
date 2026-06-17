@@ -3,9 +3,11 @@ import {
   IsNumber,
   IsDateString,
   IsOptional,
+  IsEnum,
   Min,
   IsNotEmpty,
 } from 'class-validator';
+import { FlashSlotStatus } from '@gpower/db';
 
 export class CreateFlashSlotDto {
   @IsString()
@@ -41,6 +43,6 @@ export class CreateFlashSlotDto {
 
 export class QueryFlashSlotDto {
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsEnum(FlashSlotStatus)
+  status?: FlashSlotStatus;
 }
