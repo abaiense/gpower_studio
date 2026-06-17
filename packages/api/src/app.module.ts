@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { StudiosModule } from './studios/studios.module';
+import { ArtistsModule } from './artists/artists.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 
 @Module({
@@ -15,6 +16,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
     AuthModule,
     UsersModule,
     StudiosModule,
+    ArtistsModule,
   ],
   controllers: [],
   providers: [],
