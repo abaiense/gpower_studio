@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import {
@@ -9,10 +9,11 @@ import {
 @Injectable()
 export class NotificationsService {
   constructor(
-    @InjectQueue('notifications') private readonly notificationsQueue: Queue<NotificationJobDto>,
+    @Optional() @InjectQueue('notifications') private readonly notificationsQueue?: Queue<NotificationJobDto>,
   ) {}
 
   async send(job: NotificationJobDto): Promise<void> {
+    if (!this.notificationsQueue) return;
     await this.notificationsQueue.add(job);
   }
 

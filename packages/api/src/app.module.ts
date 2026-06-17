@@ -1,7 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -23,13 +22,6 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     JwtModule.register({}),
-    BullModule.forRootAsync({
-      useFactory: () => ({
-        redis: process.env['REDIS_URL']
-          ? { url: process.env['REDIS_URL'] }
-          : { host: 'localhost', port: 6379 },
-      }),
-    }),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -39,7 +31,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
     ServicesModule,
     AppointmentsModule,
     PaymentsModule,
-    NotificationsModule,
+    NotificationsModule.forRoot(),
     ProjectsModule,
     ArtFilesModule,
     ConsentFormsModule,

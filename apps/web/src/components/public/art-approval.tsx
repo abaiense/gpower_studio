@@ -6,7 +6,7 @@ import {
   CheckCircle2, XCircle, AlertCircle, RefreshCw, ImageIcon, ThumbsUp, MessageSquare,
 } from 'lucide-react';
 
-const PUBLIC_API = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3333';
+const PUBLIC_API = (process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001') + '/api/v1';
 
 interface ArtFile {
   id: string;

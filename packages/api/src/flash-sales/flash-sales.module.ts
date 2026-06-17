@@ -5,7 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, NotificationsModule],
+  imports: [PrismaModule, NotificationsModule.forRoot()],
   controllers: [FlashSalesController],
   providers: [FlashSalesService],
   exports: [FlashSalesService],

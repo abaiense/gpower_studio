@@ -4,7 +4,7 @@ import { AppointmentsController } from './appointments.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule.forRoot()],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],
   exports: [AppointmentsService],

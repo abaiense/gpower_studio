@@ -4,10 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "module": "CommonJS",
-    "moduleResolution": "Node",
-    "paths": {
-      "@prisma/client": ["./node_modules/.prisma/client"]
-    }
+    "moduleResolution": "Node"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

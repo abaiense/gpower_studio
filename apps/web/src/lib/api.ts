@@ -1,8 +1,11 @@
 import axios, { AxiosRequestConfig } from 'axios';
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from './auth';
 
+const API_BASE = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
+const API_URL = API_BASE.endsWith('/api/v1') ? API_BASE : `${API_BASE}/api/v1`;
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001',
+  baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -68,7 +71,7 @@ api.interceptors.response.use(
       try {
         // IMPORTANT: Must use axios (not api) here to bypass the 401 interceptor and prevent infinite loop
         const { data } = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/auth/refresh`,
+          `${API_URL}/auth/refresh`,
           { refreshToken },
         );
 

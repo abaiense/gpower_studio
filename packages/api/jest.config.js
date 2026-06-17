@@ -17,7 +17,6 @@ module.exports = {
         skipLibCheck: true,
         paths: {
           '@gpower/db': [path.resolve(__dirname, '../db/src/index.ts')],
-          '@prisma/client': [path.resolve(__dirname, '../db/node_modules/.prisma/client')],
         },
       },
       diagnostics: false,
@@ -29,6 +28,5 @@ module.exports = {
   moduleNameMapper: {
     '^@gpower/db$': path.resolve(__dirname, '../db/src/index.ts'),
     '^@gpower/shared$': path.resolve(__dirname, 'node_modules/@gpower/shared/dist/index.js'),
-    '^@prisma/client$': path.resolve(__dirname, '../db/node_modules/.prisma/client'),
   },
 };
