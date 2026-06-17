@@ -1,12 +1,12 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-export default function RootPage() {
-  const cookieStore = cookies();
+export default async function RootPage() {
+  const cookieStore = await cookies();
   const token = cookieStore.get('gpower_access_token');
 
   if (token?.value) {
-    redirect('/dashboard');
+    redirect('/agenda');
   } else {
     redirect('/login');
   }
