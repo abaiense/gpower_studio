@@ -121,7 +121,7 @@ describe('PublicService', () => {
     it('returns idempotent message when already approved', async () => {
       prisma.artFile.findFirst.mockResolvedValue({ ...mockArtFile, status: 'APPROVED' });
       const result = await service.approveArt('mock-token', '1.2.3.4');
-      expect(result.message).toBe('Already approved');
+      expect(result.message).toBe('Arte já aprovada');
       expect(prisma.artFile.update).not.toHaveBeenCalled();
     });
 
@@ -191,7 +191,7 @@ describe('PublicService', () => {
     it('returns idempotent message when already signed', async () => {
       prisma.consentForm.findFirst.mockResolvedValue({ ...mockConsentForm, signedAt: new Date() });
       const result = await service.signConsent('mock-token', '1.2.3.4', 'Mozilla/5.0');
-      expect(result.message).toBe('Already signed');
+      expect(result.message).toBe('Consentimento já assinado');
       expect(prisma.consentForm.update).not.toHaveBeenCalled();
     });
 
