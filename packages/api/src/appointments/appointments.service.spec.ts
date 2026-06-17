@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import { NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -30,6 +30,15 @@ const appointmentInclude = {
   service: { select: { id: true, name: true, category: true, durationMin: true } },
 };
 
+const mockArtist = {
+  id: 'artist-1',
+  firstName: 'Ana',
+  lastName: 'Lima',
+  commissionType: 'PERCENTAGE' as const,
+  commissionValue: 50,
+  studioId: 'studio-1',
+};
+
 const createPrismaMock = () => ({
   appointment: {
     create: jest.fn(),
@@ -42,6 +51,13 @@ const createPrismaMock = () => ({
     findFirst: jest.fn(),
     findMany: jest.fn(),
   },
+  artist: {
+    findFirst: jest.fn(),
+  },
+  payment: {
+    create: jest.fn(),
+  },
+  $transaction: jest.fn(),
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -90,7 +106,12 @@ describe('AppointmentsService', () => {
           endAt: new Date(dto.endAt),
           studioId: 'studio-1',
         },
-        include: appointmentInclude,
+        include: expect.objectContaining({
+          artist: appointmentInclude.artist,
+          service: expect.objectContaining({
+            select: expect.objectContaining({ name: true }),
+          }),
+        }),
       });
     });
 
@@ -482,6 +503,140 @@ describe('AppointmentsService', () => {
       const result = await service.getAvailability('studio-1', 'artist-1', date);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  // ── closeSession ──────────────────────────────────────────────────────────
+
+  describe('closeSession', () => {
+    const dto = {
+      totalPrice: 1000,
+      payments: [{ method: 'PIX' as const, amount: 1000 }],
+    };
+
+    it('calculates PERCENTAGE commission correctly', async () => {
+      const appt = { ...mockAppointment, depositAmount: 200 };
+      prisma.appointment.findFirst.mockResolvedValue(appt);
+      prisma.artist.findFirst.mockResolvedValue(mockArtist); // 50%
+      const completedAppt = { ...appt, status: 'COMPLETED', totalPrice: 1000 };
+      prisma.$transaction.mockResolvedValue([completedAppt]);
+
+      const result = await service.closeSession('appt-1', dto, 'studio-1');
+
+      // depositDeducted = min(200, 1000) = 200
+      // netRevenue = 1000 - 200 = 800
+      // artistEarns = 800 * 0.5 = 400
+      // studioEarns = 800 - 400 = 400
+      expect(result.commission.depositDeducted).toBe(200);
+      expect(result.commission.netRevenue).toBe(800);
+      expect(result.commission.artistEarns).toBe(400);
+      expect(result.commission.studioEarns).toBe(400);
+    });
+
+    it('calculates FIXED commission correctly', async () => {
+      const appt = { ...mockAppointment, depositAmount: 0 };
+      const fixedArtist = { ...mockArtist, commissionType: 'FIXED' as const, commissionValue: 300 };
+      prisma.appointment.findFirst.mockResolvedValue(appt);
+      prisma.artist.findFirst.mockResolvedValue(fixedArtist);
+      const completedAppt = { ...appt, status: 'COMPLETED', totalPrice: 1000 };
+      prisma.$transaction.mockResolvedValue([completedAppt]);
+
+      const result = await service.closeSession('appt-1', dto, 'studio-1');
+
+      // netRevenue = 1000 - 0 = 1000
+      // artistEarns = 300 (fixed)
+      // studioEarns = 1000 - 300 = 700
+      expect(result.commission.artistEarns).toBe(300);
+      expect(result.commission.studioEarns).toBe(700);
+    });
+
+    it('throws BadRequestException when appointment is already COMPLETED', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({
+        ...mockAppointment,
+        status: 'COMPLETED',
+      });
+
+      await expect(
+        service.closeSession('appt-1', dto, 'studio-1'),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when appointment does not exist', async () => {
+      prisma.appointment.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.closeSession('nonexistent', dto, 'studio-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deposits larger than totalPrice are capped at totalPrice', async () => {
+      const appt = { ...mockAppointment, depositAmount: 1500 };
+      prisma.appointment.findFirst.mockResolvedValue(appt);
+      prisma.artist.findFirst.mockResolvedValue(mockArtist);
+      const completedAppt = { ...appt, status: 'COMPLETED', totalPrice: 1000 };
+      prisma.$transaction.mockResolvedValue([completedAppt]);
+
+      const result = await service.closeSession('appt-1', dto, 'studio-1');
+
+      // depositDeducted = min(1500, 1000) = 1000 (capped)
+      expect(result.commission.depositDeducted).toBe(1000);
+      expect(result.commission.netRevenue).toBe(0);
+    });
+  });
+
+  // ── getDailyCashReport ────────────────────────────────────────────────────
+
+  describe('getDailyCashReport', () => {
+    it('aggregates revenue and payment breakdown correctly', async () => {
+      const completedAppt = {
+        ...mockAppointment,
+        status: 'COMPLETED',
+        totalPrice: 800,
+        depositAmount: 200,
+        artist: {
+          id: 'artist-1',
+          firstName: 'Ana',
+          lastName: 'Lima',
+          commissionType: 'PERCENTAGE' as const,
+          commissionValue: 50,
+        },
+        payments: [
+          { id: 'pay-1', method: 'PIX', amount: 600, status: 'PAID', appointmentId: 'appt-1' },
+          { id: 'pay-2', method: 'CASH', amount: 200, status: 'PAID', appointmentId: 'appt-1' },
+        ],
+      };
+
+      prisma.appointment.findMany
+        .mockResolvedValueOnce([completedAppt]) // COMPLETED appointments
+        .mockResolvedValueOnce([completedAppt]); // all appointments for day
+
+      const result = await service.getDailyCashReport('studio-1', '2026-06-20');
+
+      expect(result.date).toBe('2026-06-20');
+      expect(result.totalRevenue).toBe(800);
+      expect(result.completedAppointments).toBe(1);
+      expect(result.paymentBreakdown['PIX']).toBe(600);
+      expect(result.paymentBreakdown['CASH']).toBe(200);
+      expect(result.artistSummary).toHaveLength(1);
+      expect(result.artistSummary[0]!.artistName).toBe('Ana Lima');
+      // depositDeducted = min(200, 800) = 200, netRevenue = 600, artistEarns = 300, studioEarns = 300
+      expect(result.artistSummary[0]!.artistEarns).toBe(300);
+      expect(result.artistSummary[0]!.studioEarns).toBe(300);
+    });
+
+    it('returns zero totals when no completed appointments', async () => {
+      prisma.appointment.findMany
+        .mockResolvedValueOnce([]) // no COMPLETED
+        .mockResolvedValueOnce([]); // no appointments at all
+
+      const result = await service.getDailyCashReport('studio-1', '2026-06-20');
+
+      expect(result.totalRevenue).toBe(0);
+      expect(result.completedAppointments).toBe(0);
+      expect(result.totalAppointments).toBe(0);
+      expect(result.paymentBreakdown).toEqual({});
+      expect(result.artistSummary).toEqual([]);
     });
   });
 });

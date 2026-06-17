@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { AppointmentForm } from './appointment-form';
 import type { Appointment, AppointmentStatus } from './appointment-form';
+import { CloseSessionModal } from './close-session-modal';
 
 interface AppointmentModalProps {
   isOpen: boolean;
@@ -40,6 +41,10 @@ export function AppointmentModal({
 }: AppointmentModalProps) {
   const queryClient = useQueryClient();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const [closeSessionOpen, setCloseSessionOpen] = useState(false);
+
+  const canCloseSession =
+    appointment?.status === 'CONFIRMED' || appointment?.status === 'IN_PROGRESS';
 
   // Close on Escape
   useEffect(() => {
@@ -179,21 +184,32 @@ export function AppointmentModal({
           <h2 className="text-lg font-semibold text-gray-900">
             {appointment ? 'Editar Agendamento' : 'Novo Agendamento'}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-            aria-label="Fechar"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {canCloseSession && (
+              <button
+                type="button"
+                onClick={() => setCloseSessionOpen(true)}
+                className="rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm font-medium transition-colors"
+              >
+                Fechar Sessão
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+              aria-label="Fechar"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -208,6 +224,18 @@ export function AppointmentModal({
           />
         </div>
       </div>
+
+      {/* Close session modal — rendered outside the dialog panel to avoid z-index issues */}
+      {canCloseSession && appointment && (
+        <CloseSessionModal
+          isOpen={closeSessionOpen}
+          onClose={() => {
+            setCloseSessionOpen(false);
+            onClose();
+          }}
+          appointment={appointment}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -9,12 +10,21 @@ import { ArtistsModule } from './artists/artists.module';
 import { ClientsModule } from './clients/clients.module';
 import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { PaymentsModule } from './payments/payments.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     JwtModule.register({}),
+    BullModule.forRootAsync({
+      useFactory: () => ({
+        redis: process.env['REDIS_URL']
+          ? { url: process.env['REDIS_URL'] }
+          : { host: 'localhost', port: 6379 },
+      }),
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -23,6 +33,8 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
     ClientsModule,
     ServicesModule,
     AppointmentsModule,
+    PaymentsModule,
+    NotificationsModule,
   ],
   controllers: [],
   providers: [],

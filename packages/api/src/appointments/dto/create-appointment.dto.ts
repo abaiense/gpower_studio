@@ -7,8 +7,11 @@ import {
   IsNotEmpty,
   Min,
   MinLength,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
-import { AppointmentStatus } from '@gpower/db';
+import { Type } from 'class-transformer';
+import { AppointmentStatus, PaymentMethod } from '@gpower/db';
 
 export class CreateAppointmentDto {
   @IsDateString()
@@ -116,6 +119,35 @@ export class GetAvailabilityDto {
   @IsNotEmpty()
   artistId!: string;
 
+  @IsDateString()
+  date!: string;
+}
+
+export class PaymentItemDto {
+  @IsEnum(PaymentMethod)
+  method!: PaymentMethod;
+
+  @IsNumber()
+  @Min(0.01)
+  amount!: number;
+}
+
+export class CloseSessionDto {
+  @IsNumber()
+  @Min(0)
+  totalPrice!: number;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentItemDto)
+  payments!: PaymentItemDto[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CashReportQueryDto {
   @IsDateString()
   date!: string;
 }

@@ -81,6 +81,22 @@ model Studio {
   currency  String  @default("BRL")
   isActive  Boolean @default(true)
 
+  // Deposit config
+  depositEnabled     Boolean @default(false)
+  depositType        String  @default("PERCENTAGE") // "PERCENTAGE" | "FIXED"
+  depositValue       Float   @default(30)            // 30% or R$30
+  depositExpiryHours Int     @default(24)            // auto-cancel if unpaid after X hours
+
+  // WhatsApp config (Meta WhatsApp Business API)
+  whatsappEnabled       Boolean @default(false)
+  whatsappPhoneNumberId String?
+  whatsappAccessToken   String? // stored as-is for now (stub encryption)
+
+  // Email config
+  emailEnabled     Boolean @default(false)
+  emailFromName    String?
+  emailFromAddress String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

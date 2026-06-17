@@ -37,6 +37,8 @@ const createServiceMock = () => ({
   update: jest.fn(),
   remove: jest.fn(),
   getAvailability: jest.fn(),
+  closeSession: jest.fn(),
+  getDailyCashReport: jest.fn(),
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -157,6 +159,55 @@ describe('AppointmentsController', () => {
       const result = await controller.getAvailability(query as any, mockUser);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('POST /appointments/:id/close', () => {
+    it('closes the session and returns appointment + commission', async () => {
+      const dto = {
+        totalPrice: 1000,
+        payments: [{ method: 'PIX' as const, amount: 1000 }],
+      };
+      const closeResult = {
+        appointment: { ...mockAppointment, status: 'COMPLETED', totalPrice: 1000 },
+        commission: {
+          artistId: 'artist-1',
+          commissionType: 'PERCENTAGE',
+          commissionValue: 50,
+          totalPrice: 1000,
+          depositAmount: 0,
+          depositDeducted: 0,
+          netRevenue: 1000,
+          artistEarns: 500,
+          studioEarns: 500,
+        },
+      };
+      service.closeSession.mockResolvedValue(closeResult);
+
+      const result = await controller.closeSession('appt-1', dto as any, mockUser);
+
+      expect(result).toEqual(closeResult);
+      expect(service.closeSession).toHaveBeenCalledWith('appt-1', dto, 'studio-1');
+    });
+  });
+
+  describe('GET /appointments/cash-report', () => {
+    it('returns daily cash report', async () => {
+      const report = {
+        date: '2026-06-20',
+        totalRevenue: 1000,
+        totalAppointments: 2,
+        completedAppointments: 1,
+        cancelledAppointments: 1,
+        paymentBreakdown: { PIX: 1000 },
+        artistSummary: [],
+      };
+      service.getDailyCashReport.mockResolvedValue(report);
+
+      const result = await controller.getCashReport({ date: '2026-06-20' } as any, mockUser);
+
+      expect(result).toEqual(report);
+      expect(service.getDailyCashReport).toHaveBeenCalledWith('studio-1', '2026-06-20');
     });
   });
 });

@@ -12,12 +12,14 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { Appointment } from '@gpower/db';
-import { AppointmentsService } from './appointments.service';
+import { AppointmentsService, CommissionResult, DailyCashReport } from './appointments.service';
 import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
   QueryAppointmentDto,
   GetAvailabilityDto,
+  CloseSessionDto,
+  CashReportQueryDto,
 } from './dto/create-appointment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -54,6 +56,23 @@ export class AppointmentsController {
       query.artistId,
       query.date,
     );
+  }
+
+  @Get('cash-report')
+  async getCashReport(
+    @Query() query: CashReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DailyCashReport> {
+    return this.appointmentsService.getDailyCashReport(user.studioId, query.date);
+  }
+
+  @Post(':id/close')
+  async closeSession(
+    @Param('id') id: string,
+    @Body() dto: CloseSessionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ appointment: Appointment; commission: CommissionResult }> {
+    return this.appointmentsService.closeSession(id, dto, user.studioId);
   }
 
   @Get(':id')
