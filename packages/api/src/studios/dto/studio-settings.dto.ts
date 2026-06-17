@@ -59,3 +59,13 @@ export class StudioSettingsDto {
   @IsEmail()
   emailFromAddress?: string;
 }
+
+export class UpdatePaymentConfigDto {
+  @IsOptional()
+  @IsString()
+  mpAccessToken?: string;
+
+  @IsOptional()
+  @IsString()
+  mpPublicKey?: string;
+}

@@ -10,7 +10,7 @@ import { Studio } from '@gpower/db';
 import { StudiosService } from './studios.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
-import { StudioSettingsDto } from './dto/studio-settings.dto';
+import { StudioSettingsDto, UpdatePaymentConfigDto } from './dto/studio-settings.dto';
 
 @Controller('studios')
 @UseGuards(JwtAuthGuard)
@@ -40,5 +40,20 @@ export class StudiosController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Studio> {
     return this.studiosService.updateSettings(user.studioId, dto);
+  }
+
+  @Get('me/payment-config')
+  async getPaymentConfig(
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studiosService.getPaymentConfig(user.studioId);
+  }
+
+  @Patch('me/payment-config')
+  async updatePaymentConfig(
+    @Body() dto: UpdatePaymentConfigDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.studiosService.updatePaymentConfig(user.studioId, dto);
   }
 }
