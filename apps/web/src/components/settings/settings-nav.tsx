@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: '/configuracoes', label: 'Geral' },
   { href: '/configuracoes/deposito', label: 'Depósito' },
   { href: '/configuracoes/comunicacao', label: 'Comunicação' },
+  { href: '/configuracoes/pagamentos', label: 'Pagamentos' },
 ];
 
 export function SettingsNav() {
