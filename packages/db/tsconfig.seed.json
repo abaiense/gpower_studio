@@ -4,7 +4,10 @@
     "outDir": "./dist",
     "module": "CommonJS",
     "moduleResolution": "Node",
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "paths": {
+      "@prisma/client": ["./node_modules/.prisma/client"]
+    }
   },
   "include": ["prisma/**/*", "src/**/*"],
   "exclude": ["node_modules", "dist"]
