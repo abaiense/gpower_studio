@@ -16,6 +16,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { ArtFilesModule } from './art-files/art-files.module';
 import { ConsentFormsModule } from './consent-forms/consent-forms.module';
 import { PublicModule } from './public/public.module';
+import { FlashSalesModule } from './flash-sales/flash-sales.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
 
 @Module({
@@ -43,6 +44,7 @@ import { TenantMiddleware } from './common/middleware/tenant.middleware';
     ArtFilesModule,
     ConsentFormsModule,
     PublicModule,
+    FlashSalesModule,
   ],
   controllers: [],
   providers: [],
