@@ -153,7 +153,10 @@ describe('ConsentFormsService', () => {
       expect(result.consentUrl).toContain('/consent/mock-consent-token');
       expect(prisma.consentForm.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ consentToken: 'mock-consent-token' }),
+          data: expect.objectContaining({
+            consentToken: 'mock-consent-token',
+            consentTokenExpiresAt: expect.any(Date),
+          }),
         }),
       );
       expect(mockNotificationsService.send).toHaveBeenCalledWith(

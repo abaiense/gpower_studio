@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateConsentFormDto, QueryConsentFormDto } from './dto/consent-form.dto';
@@ -46,7 +46,7 @@ const FORM_TEMPLATES: Record<string, { title: string; clauses: string }> = {
 export class ConsentFormsService {
   constructor(
     private prisma: PrismaService,
-    @Optional() private notifications?: NotificationsService,
+    private notifications: NotificationsService,
   ) {}
 
   async create(dto: CreateConsentFormDto, studioId: string) {
@@ -96,8 +96,8 @@ export class ConsentFormsService {
 
     const consentUrl = `${PUBLIC_URL}/consent/${token}`;
 
-    const client = await this.prisma.client.findFirst({ where: { id: form.clientId } });
-    if (client && this.notifications) {
+    const client = await this.prisma.client.findFirst({ where: { id: form.clientId, studioId } });
+    if (client) {
       await this.notifications.send({
         channel: 'whatsapp',
         template: 'CONSENT_REQUEST',
