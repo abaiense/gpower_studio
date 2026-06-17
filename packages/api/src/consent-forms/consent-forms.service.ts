@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@gpower/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateConsentFormDto, QueryConsentFormDto } from './dto/consent-form.dto';
@@ -54,7 +55,7 @@ export class ConsentFormsService {
     return this.prisma.consentForm.create({
       data: {
         formType: dto.formType,
-        data: template,
+        data: template as Prisma.InputJsonValue,
         clientId: dto.clientId,
         studioId,
         ...(dto.appointmentId ? { appointmentId: dto.appointmentId } : {}),

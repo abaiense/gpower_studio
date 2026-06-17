@@ -48,7 +48,7 @@ export class ArtFilesService {
         s3Key,
         mimeType: dto.mimeType,
         sizeBytes: dto.sizeBytes,
-        notes: dto.notes,
+        notes: dto.notes ?? null,
         projectId,
         studioId,
         uploadedBy: userId,

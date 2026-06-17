@@ -30,8 +30,8 @@ export class PaymentsService {
         amount: dto.amount,
         method: dto.method,
         appointmentId: dto.appointmentId,
-        externalId: dto.externalId,
-        gateway: dto.gateway,
+        externalId: dto.externalId ?? null,
+        gateway: dto.gateway ?? null,
       },
     });
   }
@@ -98,8 +98,8 @@ export class PaymentsService {
         method: dto.method,
         status: PaymentStatus.PAID,
         source: 'infinitepay',
-        installments: dto.installments,
-        installmentValue,
+        installments: dto.installments ?? null,
+        installmentValue: installmentValue ?? null,
         paidAt: new Date(),
         appointmentId: dto.appointmentId,
       },
@@ -216,7 +216,7 @@ export class PaymentsService {
           status: PaymentStatus.PAID,
           paidAt: new Date(),
           externalId: mpPaymentId,
-          installments,
+          installments: installments ?? null,
         },
       });
     }

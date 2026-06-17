@@ -2,10 +2,10 @@ import { IsString, IsOptional, IsInt, IsEnum, Min } from 'class-validator';
 import { ProjectStatus } from '@gpower/db';
 
 export class CreateProjectDto {
-  @IsString() name: string;
+  @IsString() name!: string;
   @IsOptional() @IsString() description?: string;
-  @IsString() clientId: string;
-  @IsString() artistId: string;
+  @IsString() clientId!: string;
+  @IsString() artistId!: string;
   @IsOptional() @IsInt() @Min(1) estimatedSessions?: number;
 }
 

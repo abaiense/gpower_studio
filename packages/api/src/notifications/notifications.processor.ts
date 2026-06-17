@@ -15,6 +15,10 @@ const TEMPLATE_MAP: Record<NotificationTemplate, string> = {
   APPOINTMENT_REMINDER: 'gpower_appointment_reminder',
   DEPOSIT_REQUEST: 'gpower_deposit_request',
   AFTERCARE_DAY1: 'gpower_aftercare_day1',
+  ART_APPROVAL_REQUEST: 'gpower_art_approval_request',
+  CONSENT_REQUEST: 'gpower_consent_request',
+  FLASH_SALE_BROADCAST: 'gpower_flash_sale_broadcast',
+  FLASH_SALE_CLAIMED: 'gpower_flash_sale_claimed',
 };
 
 const EMAIL_TEMPLATE_MAP: Record<NotificationTemplate, string> = {
@@ -22,6 +26,10 @@ const EMAIL_TEMPLATE_MAP: Record<NotificationTemplate, string> = {
   APPOINTMENT_REMINDER: 'd-gpower_reminder',
   DEPOSIT_REQUEST: 'd-gpower_deposit',
   AFTERCARE_DAY1: 'd-gpower_aftercare',
+  ART_APPROVAL_REQUEST: 'd-gpower_art_approval',
+  CONSENT_REQUEST: 'd-gpower_consent',
+  FLASH_SALE_BROADCAST: 'd-gpower_flash_sale',
+  FLASH_SALE_CLAIMED: 'd-gpower_flash_claimed',
 };
 
 @Processor('notifications')

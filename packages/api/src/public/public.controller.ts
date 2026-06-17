@@ -6,7 +6,7 @@ import { IsString } from 'class-validator';
 import { PublicService } from './public.service';
 
 class RequestRevisionDto {
-  @IsString() clientNotes: string;
+  @IsString() clientNotes!: string;
 }
 
 @Controller('public')
@@ -35,7 +35,7 @@ export class PublicController {
   }
 
   @Get('consent/:token')
-  getConsentForm(@Param('token') token: string) {
+  async getConsentForm(@Param('token') token: string): Promise<any> {
     return this.service.getConsentForm(token);
   }
 

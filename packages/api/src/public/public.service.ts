@@ -87,7 +87,7 @@ export class PublicService {
     return { message: 'Solicitação de revisão enviada!' };
   }
 
-  async getConsentForm(token: string) {
+  async getConsentForm(token: string): Promise<any> {
     const payload = this.verifyConsentToken(token);
     const form = await this.prisma.consentForm.findFirst({
       where: { id: payload.consentFormId, consentToken: token },

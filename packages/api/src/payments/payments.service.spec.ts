@@ -95,8 +95,8 @@ describe('PaymentsService', () => {
           amount: 500,
           method: 'PIX',
           appointmentId: 'appt-1',
-          externalId: undefined,
-          gateway: undefined,
+          externalId: null,
+          gateway: null,
         },
       });
     });

@@ -12,17 +12,17 @@ export class ConsentFormsController {
   constructor(private readonly service: ConsentFormsService) {}
 
   @Post()
-  create(@Body() dto: CreateConsentFormDto, @CurrentUser() user: AuthenticatedUser) {
+  async create(@Body() dto: CreateConsentFormDto, @CurrentUser() user: AuthenticatedUser): Promise<any> {
     return this.service.create(dto, user.studioId);
   }
 
   @Get()
-  findAll(@Query() query: QueryConsentFormDto, @CurrentUser() user: AuthenticatedUser) {
+  async findAll(@Query() query: QueryConsentFormDto, @CurrentUser() user: AuthenticatedUser): Promise<any> {
     return this.service.findAll(user.studioId, query);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  async findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<any> {
     return this.service.findOne(id, user.studioId);
   }
 

@@ -25,7 +25,7 @@ export class FlashSalesService {
     const slot = await this.prisma.flashSlot.create({
       data: {
         title: dto.title,
-        description: dto.description,
+        description: dto.description ?? null,
         originalPrice: dto.originalPrice,
         discountPrice: dto.discountPrice,
         sessionAt: new Date(dto.sessionAt),
@@ -44,7 +44,7 @@ export class FlashSalesService {
     );
 
     const clients = await this.prisma.client.findMany({
-      where: { studioId, phone: { not: null } },
+      where: { studioId, phone: { not: null } } as never,
       select: { id: true, firstName: true, phone: true },
     });
 
