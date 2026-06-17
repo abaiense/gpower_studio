@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Payment, PaymentStatus } from '@gpower/db';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreatePaymentDto,
@@ -123,25 +124,36 @@ export class PaymentsService {
       );
     }
 
-    const mpRes = await axios.post<{ id: string; init_point: string }>(
-      'https://api.mercadopago.com/checkout/preferences',
-      {
-        items: [
-          {
-            title: dto.description ?? 'Sessão de tatuagem',
-            quantity: 1,
-            unit_price: dto.amount,
-            currency_id: 'BRL',
-          },
-        ],
-        payment_methods: { installments: dto.maxInstallments ?? 12 },
-        notification_url: `${PUBLIC_URL}/api/payments/mp-webhook?studio_id=${studioId}`,
-        metadata: { studioId },
-      },
-      { headers: { Authorization: `Bearer ${studio.mpAccessToken}` } },
-    );
+    let mpData: { id: string; init_point: string };
+    try {
+      const mpRes = await axios.post<{ id: string; init_point: string }>(
+        'https://api.mercadopago.com/checkout/preferences',
+        {
+          items: [
+            {
+              title: dto.description ?? 'Sessão de tatuagem',
+              quantity: 1,
+              unit_price: dto.amount,
+              currency_id: 'BRL',
+            },
+          ],
+          payment_methods: { installments: dto.maxInstallments ?? 12 },
+          notification_url: `${PUBLIC_URL}/api/payments/mp-webhook?studio_id=${studioId}`,
+          metadata: { studioId },
+        },
+        { headers: { Authorization: `Bearer ${studio.mpAccessToken}` } },
+      );
+      mpData = mpRes.data;
+    } catch (err) {
+      const status = (err as AxiosError)?.response?.status;
+      const message =
+        status === 401
+          ? 'Token MercadoPago inválido.'
+          : 'Erro ao criar preferência no MercadoPago. Tente novamente.';
+      throw new InternalServerErrorException(message);
+    }
 
-    const { id: preferenceId, init_point: checkoutUrl } = mpRes.data;
+    const { id: preferenceId, init_point: checkoutUrl } = mpData;
 
     const payment = await this.prisma.payment.create({
       data: {
@@ -168,21 +180,32 @@ export class PaymentsService {
     });
     if (!studio?.mpAccessToken) return;
 
-    const mpRes = await axios.get<{
-      status: string;
-      metadata: { payment_id?: string };
-      installments?: number;
-    }>(
-      `https://api.mercadopago.com/v1/payments/${mpPaymentId}`,
-      { headers: { Authorization: `Bearer ${studio.mpAccessToken}` } },
-    );
+    let mpStatus: string;
+    let metadata: { payment_id?: string };
+    let installments: number | undefined;
+    try {
+      const mpRes = await axios.get<{
+        status: string;
+        metadata: { payment_id?: string };
+        installments?: number;
+      }>(
+        `https://api.mercadopago.com/v1/payments/${mpPaymentId}`,
+        { headers: { Authorization: `Bearer ${studio.mpAccessToken}` } },
+      );
+      mpStatus = mpRes.data.status;
+      metadata = mpRes.data.metadata;
+      installments = mpRes.data.installments;
+    } catch {
+      // Silently ignore MP API errors — the webhook will be retried by MP
+      return;
+    }
 
-    const { status: mpStatus, metadata } = mpRes.data;
     const internalPaymentId = metadata?.payment_id;
     if (!internalPaymentId) return;
 
+    // Scope lookup to studioId to prevent cross-studio payment manipulation
     const payment = await this.prisma.payment.findFirst({
-      where: { id: internalPaymentId },
+      where: { id: internalPaymentId, appointment: { studioId } },
     });
     if (!payment || payment.status === PaymentStatus.PAID) return;
 
@@ -193,7 +216,7 @@ export class PaymentsService {
           status: PaymentStatus.PAID,
           paidAt: new Date(),
           externalId: mpPaymentId,
-          installments: mpRes.data.installments,
+          installments,
         },
       });
     }

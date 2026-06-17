@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
@@ -346,6 +346,18 @@ describe('PaymentsService', () => {
         service.createCheckout({ appointmentId: 'bad', amount: 500 }, 'studio-1'),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('throws InternalServerErrorException if MP API call fails', async () => {
+      prisma.appointment.findFirst.mockResolvedValue({ id: 'apt-1', studioId: 'studio-1' });
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.post.mockRejectedValue({ response: { status: 500 } });
+      await expect(
+        service.createCheckout({ appointmentId: 'apt-1', amount: 500 }, 'studio-1'),
+      ).rejects.toThrow(InternalServerErrorException);
+    });
   });
 
   // ── handleMpWebhook ───────────────────────────────────────────────────────
@@ -374,6 +386,14 @@ describe('PaymentsService', () => {
 
       await service.handleMpWebhook('studio-1', 'mp-payment-123');
 
+      expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'pay-1',
+            appointment: { studioId: 'studio-1' },
+          }),
+        }),
+      );
       expect(prisma.payment.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -418,6 +438,30 @@ describe('PaymentsService', () => {
 
       await expect(service.handleMpWebhook('studio-1', 'mp-pay-1')).resolves.toBeUndefined();
       expect(prisma.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('returns silently if MP API GET call fails', async () => {
+      prisma.studio.findUnique.mockResolvedValue({ id: 'studio-1', mpAccessToken: 'tok' });
+      mockedAxios.get.mockRejectedValue(new Error('network error'));
+
+      await expect(service.handleMpWebhook('studio-1', 'mp-pay-1')).resolves.toBeUndefined();
+      expect(prisma.payment.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('does not update payment belonging to a different studio', async () => {
+      prisma.studio.findUnique.mockResolvedValue({
+        id: 'studio-1',
+        mpAccessToken: 'TEST_TOKEN',
+      });
+      mockedAxios.get.mockResolvedValue({
+        data: { status: 'approved', metadata: { payment_id: 'pay-other-studio' }, installments: 1 },
+      });
+      // Simulate payment not found for this studio (it belongs to another studio)
+      prisma.payment.findFirst.mockResolvedValue(null);
+
+      await service.handleMpWebhook('studio-1', 'mp-payment-123');
+
+      expect(prisma.payment.update).not.toHaveBeenCalled();
     });
   });
 });
