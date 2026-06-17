@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsNumber,
   IsDateString,
+  IsNotEmpty,
   Min,
   MinLength,
 } from 'class-validator';
@@ -108,4 +109,13 @@ export class QueryAppointmentDto {
   @IsString()
   @IsOptional()
   artistId?: string;
+}
+
+export class GetAvailabilityDto {
+  @IsString()
+  @IsNotEmpty()
+  artistId!: string;
+
+  @IsDateString()
+  date!: string;
 }

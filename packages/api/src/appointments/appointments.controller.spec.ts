@@ -36,6 +36,7 @@ const createServiceMock = () => ({
   findById: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+  getAvailability: jest.fn(),
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -127,6 +128,35 @@ describe('AppointmentsController', () => {
 
       expect(result).toBeUndefined();
       expect(service.remove).toHaveBeenCalledWith('appt-1', 'studio-1');
+    });
+  });
+
+  describe('GET /appointments/availability', () => {
+    it('returns available slots for artist and date', async () => {
+      const slots = [
+        { startAt: '2026-06-19T09:00:00.000Z', endAt: '2026-06-19T10:00:00.000Z' },
+        { startAt: '2026-06-19T10:00:00.000Z', endAt: '2026-06-19T11:00:00.000Z' },
+      ];
+      service.getAvailability.mockResolvedValue(slots);
+
+      const query = { artistId: 'artist-1', date: '2026-06-19' };
+      const result = await controller.getAvailability(query as any, mockUser);
+
+      expect(result).toEqual(slots);
+      expect(service.getAvailability).toHaveBeenCalledWith(
+        'studio-1',
+        'artist-1',
+        '2026-06-19',
+      );
+    });
+
+    it('returns empty array when no availability', async () => {
+      service.getAvailability.mockResolvedValue([]);
+
+      const query = { artistId: 'artist-1', date: '2026-06-19' };
+      const result = await controller.getAvailability(query as any, mockUser);
+
+      expect(result).toEqual([]);
     });
   });
 });

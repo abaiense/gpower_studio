@@ -17,6 +17,7 @@ import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
   QueryAppointmentDto,
+  GetAvailabilityDto,
 } from './dto/create-appointment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -41,6 +42,18 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Appointment[]> {
     return this.appointmentsService.findAll(user.studioId, query);
+  }
+
+  @Get('availability')
+  async getAvailability(
+    @Query() query: GetAvailabilityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Array<{ startAt: string; endAt: string }>> {
+    return this.appointmentsService.getAvailability(
+      user.studioId,
+      query.artistId,
+      query.date,
+    );
   }
 
   @Get(':id')

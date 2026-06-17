@@ -35,6 +35,7 @@ const createServiceMock = () => ({
   findByPhone: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+  generatePhotoUploadUrl: jest.fn(),
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -76,18 +77,43 @@ describe('ClientsController', () => {
     it('returns all clients for the current studio', async () => {
       service.findAll.mockResolvedValue([mockClient]);
 
-      const result = await controller.findAll(mockUser);
+      const result = await controller.findAll(mockUser, {});
 
       expect(result).toEqual([mockClient]);
-      expect(service.findAll).toHaveBeenCalledWith('studio-1');
+      expect(service.findAll).toHaveBeenCalledWith('studio-1', undefined, undefined);
     });
 
     it('returns empty array when no clients exist', async () => {
       service.findAll.mockResolvedValue([]);
 
-      const result = await controller.findAll(mockUser);
+      const result = await controller.findAll(mockUser, {});
 
       expect(result).toEqual([]);
+    });
+
+    it('passes search query to service', async () => {
+      service.findAll.mockResolvedValue([mockClient]);
+
+      const result = await controller.findAll(mockUser, { search: 'john' });
+
+      expect(result).toEqual([mockClient]);
+      expect(service.findAll).toHaveBeenCalledWith('studio-1', 'john', undefined);
+    });
+
+    it('passes isBlocked filter to service', async () => {
+      service.findAll.mockResolvedValue([]);
+
+      await controller.findAll(mockUser, { isBlocked: true });
+
+      expect(service.findAll).toHaveBeenCalledWith('studio-1', undefined, true);
+    });
+
+    it('passes both search and isBlocked to service', async () => {
+      service.findAll.mockResolvedValue([mockClient]);
+
+      await controller.findAll(mockUser, { search: 'silva', isBlocked: false });
+
+      expect(service.findAll).toHaveBeenCalledWith('studio-1', 'silva', false);
     });
   });
 
@@ -142,6 +168,47 @@ describe('ClientsController', () => {
 
       expect(result).toBeUndefined();
       expect(service.remove).toHaveBeenCalledWith('client-1', 'studio-1');
+    });
+  });
+
+  describe('POST /clients/:id/photo-upload-url', () => {
+    it('returns uploadUrl and photoUrl', async () => {
+      const mockResponse = {
+        uploadUrl: 'https://signed-url.example.com/upload',
+        photoUrl: 'https://bucket.s3.amazonaws.com/studios/studio-1/clients/client-1/photos/123-photo.jpg',
+      };
+      service.generatePhotoUploadUrl.mockResolvedValue(mockResponse);
+
+      const dto = { fileName: 'photo.jpg', contentType: 'image/jpeg' };
+      const result = await controller.generatePhotoUploadUrl('client-1', dto, mockUser);
+
+      expect(result).toEqual(mockResponse);
+      expect(service.generatePhotoUploadUrl).toHaveBeenCalledWith(
+        'client-1',
+        'studio-1',
+        'photo.jpg',
+        'image/jpeg',
+      );
+    });
+
+    it('passes studioId from current user', async () => {
+      service.generatePhotoUploadUrl.mockResolvedValue({
+        uploadUrl: 'https://upload.example.com',
+        photoUrl: 'https://cdn.example.com/key',
+      });
+
+      await controller.generatePhotoUploadUrl(
+        'client-2',
+        { fileName: 'tattoo.png', contentType: 'image/png' },
+        mockUser,
+      );
+
+      expect(service.generatePhotoUploadUrl).toHaveBeenCalledWith(
+        'client-2',
+        'studio-1',
+        'tattoo.png',
+        'image/png',
+      );
     });
   });
 });

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ConflictException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -38,6 +38,10 @@ const createPrismaMock = () => ({
     update: jest.fn(),
     delete: jest.fn(),
   },
+  artistSchedule: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
 });
 
 // ── Test suite ────────────────────────────────────────────────────────────────
@@ -70,6 +74,8 @@ describe('AppointmentsService', () => {
         artistId: 'artist-1',
         serviceId: 'service-1',
       };
+      // checkConflict returns null (no conflict)
+      prisma.appointment.findFirst.mockResolvedValue(null);
       prisma.appointment.create.mockResolvedValue(mockAppointment);
 
       const result = await service.create(dto, 'studio-1');
@@ -77,7 +83,9 @@ describe('AppointmentsService', () => {
       expect(result).toEqual(mockAppointment);
       expect(prisma.appointment.create).toHaveBeenCalledWith({
         data: {
-          ...dto,
+          clientId: 'client-1',
+          artistId: 'artist-1',
+          serviceId: 'service-1',
           startAt: new Date(dto.startAt),
           endAt: new Date(dto.endAt),
           studioId: 'studio-1',
@@ -99,6 +107,7 @@ describe('AppointmentsService', () => {
         sessionNumber: 1,
       };
       const expected = { ...mockAppointment, ...dto };
+      prisma.appointment.findFirst.mockResolvedValue(null);
       prisma.appointment.create.mockResolvedValue(expected);
 
       const result = await service.create(dto, 'studio-1');
@@ -106,6 +115,59 @@ describe('AppointmentsService', () => {
       expect(result.notes).toBe('Cliente quer referência de braço');
       expect(result.totalPrice).toBe(800);
       expect(result.sessionNumber).toBe(1);
+    });
+
+    it('throws ConflictException when a blocking appointment overlaps', async () => {
+      const dto = {
+        startAt: '2026-06-20T10:00:00Z',
+        endAt: '2026-06-20T12:00:00Z',
+        clientId: 'client-1',
+        artistId: 'artist-1',
+        serviceId: 'service-1',
+      };
+      // checkConflict finds an existing conflicting appointment
+      prisma.appointment.findFirst.mockResolvedValue(mockAppointment);
+
+      await expect(service.create(dto, 'studio-1')).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.appointment.create).not.toHaveBeenCalled();
+    });
+
+    it('does not throw when only CANCELLED/NO_SHOW appointments exist in slot', async () => {
+      const dto = {
+        startAt: '2026-06-20T10:00:00Z',
+        endAt: '2026-06-20T12:00:00Z',
+        clientId: 'client-1',
+        artistId: 'artist-1',
+        serviceId: 'service-1',
+      };
+      // checkConflict query (notIn CANCELLED/NO_SHOW) returns null — no conflict
+      prisma.appointment.findFirst.mockResolvedValue(null);
+      prisma.appointment.create.mockResolvedValue(mockAppointment);
+
+      await expect(service.create(dto, 'studio-1')).resolves.toEqual(
+        mockAppointment,
+      );
+    });
+
+    it('calls conflict check before creating', async () => {
+      const dto = {
+        startAt: '2026-06-20T10:00:00Z',
+        endAt: '2026-06-20T12:00:00Z',
+        clientId: 'client-1',
+        artistId: 'artist-1',
+        serviceId: 'service-1',
+      };
+      prisma.appointment.findFirst.mockResolvedValue(null);
+      prisma.appointment.create.mockResolvedValue(mockAppointment);
+
+      await service.create(dto, 'studio-1');
+
+      // findFirst (conflict check) is called before create
+      const findFirstOrder = prisma.appointment.findFirst.mock.invocationCallOrder[0] ?? 0;
+      const createOrder = prisma.appointment.create.mock.invocationCallOrder[0] ?? 0;
+      expect(findFirstOrder).toBeLessThan(createOrder);
     });
   });
 
@@ -248,7 +310,9 @@ describe('AppointmentsService', () => {
     });
 
     it('coerces startAt and endAt to Date objects', async () => {
-      prisma.appointment.findFirst.mockResolvedValue(mockAppointment);
+      prisma.appointment.findFirst
+        .mockResolvedValueOnce(mockAppointment) // findById
+        .mockResolvedValueOnce(null);           // checkConflict — no conflict
       prisma.appointment.update.mockResolvedValue(mockAppointment);
 
       await service.update('appt-1', { startAt: '2026-06-21T09:00:00Z' }, 'studio-1');
@@ -260,6 +324,55 @@ describe('AppointmentsService', () => {
           }),
         }),
       );
+    });
+
+    it('calls conflict check with excludeId when time changes', async () => {
+      prisma.appointment.findFirst
+        .mockResolvedValueOnce(mockAppointment) // findById
+        .mockResolvedValueOnce(null);           // checkConflict — no conflict
+      prisma.appointment.update.mockResolvedValue(mockAppointment);
+
+      await service.update(
+        'appt-1',
+        { startAt: '2026-06-21T09:00:00Z', endAt: '2026-06-21T11:00:00Z' },
+        'studio-1',
+      );
+
+      // Second findFirst call is the conflict check with excludeId
+      expect(prisma.appointment.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { not: 'appt-1' },
+          }),
+        }),
+      );
+    });
+
+    it('throws ConflictException when update causes time overlap', async () => {
+      const conflictingAppt = { ...mockAppointment, id: 'appt-2' };
+      prisma.appointment.findFirst
+        .mockResolvedValueOnce(mockAppointment) // findById
+        .mockResolvedValueOnce(conflictingAppt); // checkConflict — conflict found
+
+      await expect(
+        service.update(
+          'appt-1',
+          { startAt: '2026-06-20T09:00:00Z', endAt: '2026-06-20T11:00:00Z' },
+          'studio-1',
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.appointment.update).not.toHaveBeenCalled();
+    });
+
+    it('skips conflict check when neither startAt nor endAt changes', async () => {
+      prisma.appointment.findFirst.mockResolvedValue(mockAppointment);
+      prisma.appointment.update.mockResolvedValue(mockAppointment);
+
+      await service.update('appt-1', { notes: 'Updated note' }, 'studio-1');
+
+      // findFirst called once for findById, not again for conflict check
+      expect(prisma.appointment.findFirst).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -284,6 +397,91 @@ describe('AppointmentsService', () => {
         service.remove('nonexistent', 'studio-1'),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.appointment.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── getAvailability ───────────────────────────────────────────────────────
+
+  describe('getAvailability', () => {
+    const mockSchedule = {
+      id: 'sched-1',
+      artistId: 'artist-1',
+      dayOfWeek: 5, // Friday
+      startTime: '09:00',
+      endTime: '11:00', // 2 slots of 60 min
+      isActive: true,
+    };
+
+    it('returns available 60-min slots excluding booked ones', async () => {
+      // Date: a Friday
+      const date = '2026-06-19'; // 2026-06-19 is a Friday (dayOfWeek=5)
+
+      // One existing appointment occupying 09:00–10:00 slot
+      const bookedAppt = {
+        ...mockAppointment,
+        startAt: new Date(`${date}T09:00:00`),
+        endAt: new Date(`${date}T10:00:00`),
+      };
+
+      prisma.artistSchedule.findFirst.mockResolvedValue(mockSchedule);
+      prisma.appointment.findMany.mockResolvedValue([bookedAppt]);
+
+      const result = await service.getAvailability('studio-1', 'artist-1', date);
+
+      // Should have only 10:00–11:00 slot (09:00–10:00 is booked)
+      // Use the same local-time construction the service uses to get expected ISO strings
+      const expectedStart = new Date(`${date}T00:00:00`);
+      expectedStart.setHours(10, 0, 0, 0);
+      const expectedEnd = new Date(`${date}T00:00:00`);
+      expectedEnd.setHours(11, 0, 0, 0);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.startAt).toBe(expectedStart.toISOString());
+      expect(result[0]!.endAt).toBe(expectedEnd.toISOString());
+    });
+
+    it('returns all slots when no appointments exist', async () => {
+      const date = '2026-06-19';
+
+      prisma.artistSchedule.findFirst.mockResolvedValue(mockSchedule);
+      prisma.appointment.findMany.mockResolvedValue([]);
+
+      const result = await service.getAvailability('studio-1', 'artist-1', date);
+
+      // 09:00–10:00 and 10:00–11:00
+      expect(result).toHaveLength(2);
+    });
+
+    it('returns empty array when no schedule found for that day', async () => {
+      prisma.artistSchedule.findFirst.mockResolvedValue(null);
+
+      const result = await service.getAvailability('studio-1', 'artist-1', '2026-06-19');
+
+      expect(result).toEqual([]);
+      expect(prisma.appointment.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns empty array when all slots are booked', async () => {
+      const date = '2026-06-19';
+      const slot1 = {
+        ...mockAppointment,
+        id: 'appt-s1',
+        startAt: new Date(`${date}T09:00:00`),
+        endAt: new Date(`${date}T10:00:00`),
+      };
+      const slot2 = {
+        ...mockAppointment,
+        id: 'appt-s2',
+        startAt: new Date(`${date}T10:00:00`),
+        endAt: new Date(`${date}T11:00:00`),
+      };
+
+      prisma.artistSchedule.findFirst.mockResolvedValue(mockSchedule);
+      prisma.appointment.findMany.mockResolvedValue([slot1, slot2]);
+
+      const result = await service.getAvailability('studio-1', 'artist-1', date);
+
+      expect(result).toEqual([]);
     });
   });
 });

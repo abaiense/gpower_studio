@@ -3,8 +3,12 @@ import {
   IsOptional,
   IsEmail,
   IsBoolean,
+  IsNotEmpty,
+  MaxLength,
+  Matches,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateClientDto {
   @IsString()
@@ -33,6 +37,29 @@ export class CreateClientDto {
   @IsString()
   @IsOptional()
   allergies?: string;
+}
+
+export class SearchClientDto {
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }: { value: unknown }) => value === 'true' || value === true)
+  isBlocked?: boolean;
+}
+
+export class GeneratePhotoUploadUrlDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  fileName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^image\//)
+  contentType!: string;
 }
 
 export class UpdateClientDto {

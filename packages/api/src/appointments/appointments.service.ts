@@ -1,8 +1,9 @@
 import {
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
-import { Appointment, Prisma } from '@gpower/db';
+import { Appointment, AppointmentStatus, Prisma } from '@gpower/db';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateAppointmentDto,
@@ -16,12 +17,42 @@ const appointmentInclude = {
   service: { select: { id: true, name: true, category: true, durationMin: true } },
 } satisfies Prisma.AppointmentInclude;
 
+const NON_BLOCKING_STATUSES: AppointmentStatus[] = [
+  AppointmentStatus.CANCELLED,
+  AppointmentStatus.NO_SHOW,
+];
+
 @Injectable()
 export class AppointmentsService {
   constructor(private prisma: PrismaService) {}
 
+  private async checkConflict(
+    artistId: string,
+    startAt: Date,
+    endAt: Date,
+    excludeId?: string,
+  ): Promise<void> {
+    const conflict = await this.prisma.appointment.findFirst({
+      where: {
+        artistId,
+        status: { notIn: NON_BLOCKING_STATUSES },
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+
+    if (conflict) {
+      throw new ConflictException(
+        'Artist already has an appointment in this time slot',
+      );
+    }
+  }
+
   async create(dto: CreateAppointmentDto, studioId: string): Promise<Appointment> {
     const { startAt, endAt, ...data } = dto;
+
+    await this.checkConflict(dto.artistId, new Date(startAt), new Date(endAt));
 
     return this.prisma.appointment.create({
       data: {
@@ -90,9 +121,17 @@ export class AppointmentsService {
     dto: UpdateAppointmentDto,
     studioId: string,
   ): Promise<Appointment> {
-    await this.findById(id, studioId);
+    const existing = await this.findById(id, studioId);
 
     const { startAt, endAt, ...data } = dto;
+
+    if (startAt !== undefined || endAt !== undefined) {
+      const finalStart = startAt !== undefined ? new Date(startAt) : existing.startAt;
+      const finalEnd = endAt !== undefined ? new Date(endAt) : existing.endAt;
+      const existingArtistId = dto.artistId ?? existing.artistId;
+
+      await this.checkConflict(existingArtistId, finalStart, finalEnd, id);
+    }
 
     return this.prisma.appointment.update({
       where: { id },
@@ -109,5 +148,75 @@ export class AppointmentsService {
     await this.findById(id, studioId);
 
     await this.prisma.appointment.delete({ where: { id } });
+  }
+
+  async getAvailability(
+    studioId: string,
+    artistId: string,
+    date: string,
+  ): Promise<Array<{ startAt: string; endAt: string }>> {
+    const dayDate = new Date(`${date}T00:00:00`);
+    const dayOfWeek = dayDate.getDay();
+
+    const schedule = await this.prisma.artistSchedule.findFirst({
+      where: { artistId, dayOfWeek, isActive: true },
+    });
+
+    if (!schedule) {
+      return [];
+    }
+
+    const dayStart = new Date(`${date}T00:00:00`);
+    const dayEnd = new Date(`${date}T23:59:59`);
+
+    const existingAppointments = await this.prisma.appointment.findMany({
+      where: {
+        artistId,
+        status: { notIn: NON_BLOCKING_STATUSES },
+        startAt: { gte: dayStart },
+        endAt: { lte: dayEnd },
+      },
+    });
+
+    // Parse schedule start/end times as local hours/minutes
+    const startParts = schedule.startTime.split(':').map(Number);
+    const endParts = schedule.endTime.split(':').map(Number);
+    const startHour = startParts[0] ?? 0;
+    const startMin = startParts[1] ?? 0;
+    const endHour = endParts[0] ?? 0;
+    const endMin = endParts[1] ?? 0;
+
+    const scheduleStart = new Date(dayDate);
+    scheduleStart.setHours(startHour, startMin, 0, 0);
+
+    const scheduleEnd = new Date(dayDate);
+    scheduleEnd.setHours(endHour, endMin, 0, 0);
+
+    const slots: Array<{ startAt: string; endAt: string }> = [];
+    const slotDuration = 60 * 60 * 1000; // 60 minutes in ms
+
+    let cursor = scheduleStart.getTime();
+    const end = scheduleEnd.getTime();
+
+    while (cursor + slotDuration <= end) {
+      const slotStart = new Date(cursor);
+      const slotEnd = new Date(cursor + slotDuration);
+
+      const hasOverlap = existingAppointments.some(
+        (appt) =>
+          appt.startAt < slotEnd && appt.endAt > slotStart,
+      );
+
+      if (!hasOverlap) {
+        slots.push({
+          startAt: slotStart.toISOString(),
+          endAt: slotEnd.toISOString(),
+        });
+      }
+
+      cursor += slotDuration;
+    }
+
+    return slots;
   }
 }

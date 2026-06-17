@@ -13,7 +13,12 @@ import {
 } from '@nestjs/common';
 import { Client } from '@gpower/db';
 import { ClientsService } from './clients.service';
-import { CreateClientDto, UpdateClientDto } from './dto/create-client.dto';
+import {
+  CreateClientDto,
+  UpdateClientDto,
+  SearchClientDto,
+  GeneratePhotoUploadUrlDto,
+} from './dto/create-client.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../auth/decorators/current-user.decorator';
@@ -32,8 +37,11 @@ export class ClientsController {
   }
 
   @Get()
-  async findAll(@CurrentUser() user: AuthenticatedUser): Promise<Client[]> {
-    return this.clientsService.findAll(user.studioId);
+  async findAll(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: SearchClientDto = {},
+  ): Promise<Client[]> {
+    return this.clientsService.findAll(user.studioId, query.search, query.isBlocked);
   }
 
   @Get('search/phone')
@@ -68,5 +76,19 @@ export class ClientsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     return this.clientsService.remove(id, user.studioId);
+  }
+
+  @Post(':id/photo-upload-url')
+  async generatePhotoUploadUrl(
+    @Param('id') id: string,
+    @Body() dto: GeneratePhotoUploadUrlDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ uploadUrl: string; photoUrl: string }> {
+    return this.clientsService.generatePhotoUploadUrl(
+      id,
+      user.studioId,
+      dto.fileName,
+      dto.contentType,
+    );
   }
 }

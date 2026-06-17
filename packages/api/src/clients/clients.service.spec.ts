@@ -3,6 +3,21 @@ import { NotFoundException } from '@nestjs/common';
 import { ClientsService } from './clients.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+// ── AWS SDK mocks ─────────────────────────────────────────────────────────────
+
+jest.mock('@aws-sdk/client-s3', () => ({
+  S3Client: jest.fn().mockImplementation(() => ({})),
+  PutObjectCommand: jest.fn().mockImplementation((input: Record<string, unknown>) => input),
+}));
+
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: jest.fn(),
+}));
+
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const mockGetSignedUrl = getSignedUrl as jest.MockedFunction<typeof getSignedUrl>;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const mockClient = {
@@ -42,6 +57,7 @@ describe('ClientsService', () => {
 
   beforeEach(async () => {
     prisma = createPrismaMock();
+    jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -123,6 +139,57 @@ describe('ClientsService', () => {
       const result = await service.findAll('studio-1');
 
       expect(result).toEqual([]);
+    });
+
+    it('filters by search across firstName, lastName, email, phone', async () => {
+      prisma.client.findMany.mockResolvedValue([mockClient]);
+
+      const result = await service.findAll('studio-1', 'joão');
+
+      expect(result).toEqual([mockClient]);
+      expect(prisma.client.findMany).toHaveBeenCalledWith({
+        where: {
+          studioId: 'studio-1',
+          OR: [
+            { firstName: { contains: 'joão', mode: 'insensitive' } },
+            { lastName: { contains: 'joão', mode: 'insensitive' } },
+            { email: { contains: 'joão', mode: 'insensitive' } },
+            { phone: { contains: 'joão', mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { firstName: 'asc' },
+      });
+    });
+
+    it('filters by isBlocked when provided', async () => {
+      prisma.client.findMany.mockResolvedValue([]);
+
+      await service.findAll('studio-1', undefined, true);
+
+      expect(prisma.client.findMany).toHaveBeenCalledWith({
+        where: { studioId: 'studio-1', isBlocked: true },
+        orderBy: { firstName: 'asc' },
+      });
+    });
+
+    it('combines search and isBlocked filters', async () => {
+      prisma.client.findMany.mockResolvedValue([mockClient]);
+
+      await service.findAll('studio-1', 'silva', false);
+
+      expect(prisma.client.findMany).toHaveBeenCalledWith({
+        where: {
+          studioId: 'studio-1',
+          isBlocked: false,
+          OR: [
+            { firstName: { contains: 'silva', mode: 'insensitive' } },
+            { lastName: { contains: 'silva', mode: 'insensitive' } },
+            { email: { contains: 'silva', mode: 'insensitive' } },
+            { phone: { contains: 'silva', mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { firstName: 'asc' },
+      });
     });
   });
 
@@ -260,6 +327,79 @@ describe('ClientsService', () => {
         service.remove('nonexistent', 'studio-1'),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.client.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── generatePhotoUploadUrl ────────────────────────────────────────────────
+
+  describe('generatePhotoUploadUrl', () => {
+    beforeEach(() => {
+      process.env['AWS_S3_BUCKET'] = 'test-bucket';
+      delete process.env['AWS_CLOUDFRONT_URL'];
+    });
+
+    afterEach(() => {
+      delete process.env['AWS_S3_BUCKET'];
+    });
+
+    it('returns uploadUrl and photoUrl for a valid client', async () => {
+      prisma.client.findFirst.mockResolvedValue(mockClient);
+      mockGetSignedUrl.mockResolvedValue('https://signed-url.example.com/upload');
+
+      const result = await service.generatePhotoUploadUrl(
+        'client-1',
+        'studio-1',
+        'tattoo photo.jpg',
+        'image/jpeg',
+      );
+
+      expect(result.uploadUrl).toBe('https://signed-url.example.com/upload');
+      expect(result.photoUrl).toContain('test-bucket.s3.amazonaws.com');
+      expect(result.photoUrl).toContain('studios/studio-1/clients/client-1/photos/');
+      expect(result.photoUrl).toContain('tattoo-photo.jpg');
+    });
+
+    it('uses CloudFront URL when AWS_CLOUDFRONT_URL env is set', async () => {
+      process.env['AWS_CLOUDFRONT_URL'] = 'https://cdn.example.com';
+      prisma.client.findFirst.mockResolvedValue(mockClient);
+      mockGetSignedUrl.mockResolvedValue('https://signed-url.example.com/upload');
+
+      const result = await service.generatePhotoUploadUrl(
+        'client-1',
+        'studio-1',
+        'photo.png',
+        'image/png',
+      );
+
+      expect(result.photoUrl).toContain('https://cdn.example.com/');
+      expect(result.photoUrl).toContain('studios/studio-1/clients/client-1/photos/');
+
+      delete process.env['AWS_CLOUDFRONT_URL'];
+    });
+
+    it('sanitizes fileName by replacing spaces with dashes', async () => {
+      prisma.client.findFirst.mockResolvedValue(mockClient);
+      mockGetSignedUrl.mockResolvedValue('https://signed-url.example.com/upload');
+
+      const result = await service.generatePhotoUploadUrl(
+        'client-1',
+        'studio-1',
+        'my tattoo photo 2024.jpg',
+        'image/jpeg',
+      );
+
+      expect(result.photoUrl).toContain('my-tattoo-photo-2024.jpg');
+      expect(result.photoUrl).not.toContain(' ');
+    });
+
+    it('throws NotFoundException when client does not exist', async () => {
+      prisma.client.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.generatePhotoUploadUrl('nonexistent', 'studio-1', 'photo.jpg', 'image/jpeg'),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(mockGetSignedUrl).not.toHaveBeenCalled();
     });
   });
 });
