@@ -72,6 +72,13 @@ enum ArtFileStatus {
   REVISION_REQUESTED
 }
 
+enum FlashSlotStatus {
+  OPEN
+  CLAIMED
+  EXPIRED
+  CANCELLED
+}
+
 // ─── Models ─────────────────────────────────────────────────────────────────
 
 model Studio {
@@ -104,6 +111,10 @@ model Studio {
   emailFromName    String?
   emailFromAddress String?
 
+  // MercadoPago config
+  mpAccessToken String? // access token do MP (nunca retornado em GET)
+  mpPublicKey   String? // public key do MP
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -115,6 +126,7 @@ model Studio {
   projects     Project[]
   consentForms ConsentForm[]
   artFiles     ArtFile[]
+  flashSlots   FlashSlot[]
 
   @@map("studios")
 }
@@ -177,6 +189,7 @@ model Artist {
   appointments Appointment[]
   schedules    ArtistSchedule[]
   projects     Project[]
+  flashSlots   FlashSlot[]
 
   @@index([studioId])
   @@map("artists")
@@ -214,10 +227,11 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  studio       Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
-  appointments Appointment[]
-  projects     Project[]
-  consentForms ConsentForm[]
+  studio            Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  appointments      Appointment[]
+  projects          Project[]
+  consentForms      ConsentForm[]
+  claimedFlashSlots FlashSlot[]
 
   @@index([studioId])
   @@index([phone])
@@ -240,6 +254,7 @@ model Service {
 
   studio       Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
   appointments Appointment[]
+  flashSlots   FlashSlot[]
 
   @@index([studioId])
   @@map("services")
@@ -299,6 +314,7 @@ model Appointment {
   project      Project?      @relation(fields: [projectId], references: [id])
   payments     Payment[]
   consentForms ConsentForm[]
+  flashSlot    FlashSlot?
 
   @@index([studioId])
   @@index([artistId])
@@ -313,9 +329,13 @@ model Payment {
   amount        Float
   method        PaymentMethod
   status        PaymentStatus @default(PENDING)
-  externalId    String?       // ID do pagamento no gateway (Stripe, MP)
-  gateway       String?       // "stripe" | "mercadopago" | "pix"
-  paidAt        DateTime?
+  externalId       String?       // ID do pagamento no gateway (Stripe, MP)
+  gateway          String?       // "stripe" | "mercadopago" | "pix"
+  source           String?       // "infinitepay" | "mercadopago" | "manual"
+  installments     Int?          // número de parcelas
+  installmentValue Float?        // valor de cada parcela
+  checkoutUrl      String?       // init_point MP (link de checkout)
+  paidAt           DateTime?
   appointmentId String
 
   createdAt DateTime @default(now())
@@ -386,4 +406,36 @@ model ArtFile {
   @@index([studioId])
   @@index([approvalToken])
   @@map("art_files")
+}
+
+model FlashSlot {
+  id                 String          @id @default(cuid())
+  title              String
+  description        String?
+  originalPrice      Float
+  discountPrice      Float
+  sessionAt          DateTime
+  claimDeadline      DateTime
+  status             FlashSlotStatus @default(OPEN)
+  claimToken         String          @unique
+  artistId           String
+  serviceId          String
+  studioId           String
+  claimedByClientId  String?
+  claimedAt          DateTime?
+  appointmentId      String?         @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  artist          Artist       @relation(fields: [artistId], references: [id])
+  service         Service      @relation(fields: [serviceId], references: [id])
+  studio          Studio       @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  claimedByClient Client?      @relation(fields: [claimedByClientId], references: [id])
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+
+  @@index([studioId])
+  @@index([claimToken])
+  @@index([status])
+  @@map("flash_slots")
 }
