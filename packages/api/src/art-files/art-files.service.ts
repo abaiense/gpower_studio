@@ -35,7 +35,7 @@ export class ArtFilesService {
     if (!project) throw new NotFoundException(`Project ${projectId} not found`);
 
     const lastVersion = await this.prisma.artFile.aggregate({
-      where: { projectId },
+      where: { projectId, studioId },
       _max: { version: true },
     });
     const version = (lastVersion._max.version ?? 0) + 1;
@@ -72,10 +72,8 @@ export class ArtFilesService {
     if (file.status !== ArtFileStatus.DRAFT) {
       throw new BadRequestException('Only DRAFT files can be confirmed');
     }
-    return this.prisma.artFile.update({
-      where: { id: artFileId },
-      data: { status: ArtFileStatus.DRAFT },
-    });
+    // S3 upload acknowledged — file stays DRAFT until sendForApproval
+    return file;
   }
 
   async findAll(projectId: string, studioId: string) {
@@ -111,6 +109,8 @@ export class ArtFilesService {
       { expiresIn: '7d', audience: 'art-approval' },
     );
 
+    const approvalUrl = `${PUBLIC_URL}/approve/${token}`;
+
     await this.prisma.artFile.update({
       where: { id: artFileId },
       data: {
@@ -127,7 +127,6 @@ export class ArtFilesService {
     });
 
     if (project && this.notifications) {
-      const approvalUrl = `${PUBLIC_URL}/approve/${token}`;
       await this.notifications.send({
         channel: 'whatsapp',
         template: 'ART_APPROVAL_REQUEST',
@@ -145,6 +144,6 @@ export class ArtFilesService {
       });
     }
 
-    return { token, approvalUrl: `${PUBLIC_URL}/approve/${token}` };
+    return { token, approvalUrl };
   }
 }

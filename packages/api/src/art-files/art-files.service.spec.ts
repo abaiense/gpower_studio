@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ArtFilesService } from './art-files.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 jest.mock('@aws-sdk/client-s3');
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -30,6 +31,10 @@ const mockArtFile = {
   updatedAt: new Date(),
 };
 
+const mockNotificationsService = {
+  send: jest.fn().mockResolvedValue(undefined),
+};
+
 const createPrismaMock = () => ({
   project: { findFirst: jest.fn() },
   artFile: {
@@ -47,8 +52,13 @@ describe('ArtFilesService', () => {
 
   beforeEach(async () => {
     prisma = createPrismaMock();
+    mockNotificationsService.send.mockClear();
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ArtFilesService, { provide: PrismaService, useValue: prisma }],
+      providers: [
+        ArtFilesService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationsService, useValue: mockNotificationsService },
+      ],
     }).compile();
     service = module.get(ArtFilesService);
   });
@@ -154,6 +164,12 @@ describe('ArtFilesService', () => {
       expect(prisma.artFile.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: 'SENT' }),
+        }),
+      );
+      expect(mockNotificationsService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          template: 'ART_APPROVAL_REQUEST',
+          channel: 'whatsapp',
         }),
       );
     });
